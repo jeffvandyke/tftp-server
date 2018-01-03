@@ -279,13 +279,7 @@ mod tests {
     };
     }
 
-    test_read_string!(
-        read_string_normal,
-        "hello world!\0",
-        0,
-        "hello world!",
-        13
-    );
+    test_read_string!(read_string_normal, "hello world!\0", 0, "hello world!", 13);
     test_read_string!(
         read_string_zero_in_mid,
         "hello wor\0ld!",
