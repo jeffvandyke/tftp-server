@@ -136,26 +136,37 @@ impl Packet {
 
     /// Consumes the packet and returns the packet in byte representation.
     pub fn into_bytes(self) -> Result<PacketData> {
-        self.to_bytes()
+        let mut buf = Vec::with_capacity(MAX_PACKET_SIZE);
+        self.write_bytes_to(&mut buf)?;
+        Ok(PacketData(buf))
     }
 
-    /// Returns the byte representation of the packet
-    pub fn to_bytes(&self) -> Result<PacketData> {
+    /// Writes the packet bytes to the give slice, returning the amount of bytes written
+    pub fn write_to_slice(&self, sl: &mut [u8]) -> Result<usize> {
+        let left = {
+            let mut buf = sl.split_at_mut(0).1;
+            self.write_bytes_to(&mut buf)?;
+            buf.len()
+        };
+        Ok(sl.len() - left)
+    }
+
+    pub fn write_bytes_to(&self, buf: &mut Write) -> Result<()> {
         match *self {
             Packet::RRQ {
                 ref filename,
                 ref mode,
-            } => rw_packet_bytes(OpCode::RRQ, filename, mode),
+            } => rw_packet_bytes(OpCode::RRQ, filename, mode, buf),
             Packet::WRQ {
                 ref filename,
                 ref mode,
-            } => rw_packet_bytes(OpCode::WRQ, filename, mode),
+            } => rw_packet_bytes(OpCode::WRQ, filename, mode, buf),
             Packet::DATA {
                 block_num,
                 ref data,
-            } => data_packet_bytes(block_num, data.as_slice()),
-            Packet::ACK(block_num) => ack_packet_bytes(block_num),
-            Packet::ERROR { code, ref msg } => error_packet_bytes(code, msg),
+            } => data_packet_bytes(block_num, data.as_slice(), buf),
+            Packet::ACK(block_num) => ack_packet_bytes(block_num, buf),
+            Packet::ERROR { code, ref msg } => error_packet_bytes(code, msg, buf),
         }
     }
 }
@@ -214,46 +225,38 @@ fn read_error_packet(mut bytes: &[u8]) -> Result<Packet> {
     Ok(Packet::ERROR { code, msg })
 }
 
-fn rw_packet_bytes(packet: OpCode, filename: &str, mode: &str) -> Result<PacketData> {
-    let mut buf = Vec::with_capacity(MAX_PACKET_SIZE);
-
+fn rw_packet_bytes(packet: OpCode, filename: &str, mode: &str, buf: &mut Write) -> Result<()> {
     buf.write_u16::<BigEndian>(packet as u16)?;
     buf.write_all(filename.as_bytes())?;
-    buf.push(0);
+    buf.write_all(&[0])?;
     buf.write_all(mode.as_bytes())?;
-    buf.push(0);
+    buf.write_all(&[0])?;
 
-    Ok(PacketData(buf))
+    Ok(())
 }
 
-fn data_packet_bytes(block_num: u16, data: &[u8]) -> Result<PacketData> {
-    let mut buf = Vec::with_capacity(MAX_PACKET_SIZE);
-
+fn data_packet_bytes(block_num: u16, data: &[u8], buf: &mut Write) -> Result<()> {
     buf.write_u16::<BigEndian>(OpCode::DATA as u16)?;
     buf.write_u16::<BigEndian>(block_num)?;
     buf.write_all(data)?;
 
-    Ok(PacketData(buf))
+    Ok(())
 }
 
-fn ack_packet_bytes(block_num: u16) -> Result<PacketData> {
-    let mut buf = Vec::with_capacity(MAX_PACKET_SIZE);
-
+fn ack_packet_bytes(block_num: u16, buf: &mut Write) -> Result<()> {
     buf.write_u16::<BigEndian>(OpCode::ACK as u16)?;
     buf.write_u16::<BigEndian>(block_num)?;
 
-    Ok(PacketData(buf))
+    Ok(())
 }
 
-fn error_packet_bytes(code: ErrorCode, msg: &str) -> Result<PacketData> {
-    let mut buf = Vec::with_capacity(MAX_PACKET_SIZE);
-
+fn error_packet_bytes(code: ErrorCode, msg: &str, buf: &mut Write) -> Result<()> {
     buf.write_u16::<BigEndian>(OpCode::ERROR as u16)?;
     buf.write_u16::<BigEndian>(code as u16)?;
     buf.write_all(msg.as_bytes())?;
-    buf.push(0);
+    buf.write_all(&[0])?;
 
-    Ok(PacketData(buf))
+    Ok(())
 }
 
 #[cfg(test)]

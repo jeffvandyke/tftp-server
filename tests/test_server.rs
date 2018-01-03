@@ -15,6 +15,18 @@ use tftp_server::server::{Result, TftpServer, ServerConfig};
 
 const TIMEOUT: u64 = 3;
 
+use tftp_server::packet::{PacketData, PacketErr};
+trait PacketExt {
+    fn to_bytes(&self) -> std::result::Result<PacketData, PacketErr>;
+}
+
+impl PacketExt for Packet {
+    fn to_bytes(&self) -> std::result::Result<PacketData, PacketErr> {
+        let dup = self.clone();
+        dup.into_bytes()
+    }
+}
+
 fn create_socket(timeout: Option<Duration>) -> Result<UdpSocket> {
     let socket = UdpSocket::bind((IpAddr::from([127, 0, 0, 1]), 0))?;
     socket.set_nonblocking(false)?;

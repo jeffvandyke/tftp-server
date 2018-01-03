@@ -280,8 +280,10 @@ impl<IO: IOAdapter + Default> TftpServerImpl<IO> {
             {
                 self.cancel_connection(&token)?;
             } else if let Some(ref mut conn) = self.connections.get_mut(&token) {
+                let mut buf = Vec::with_capacity(MAX_PACKET_SIZE);
+                conn.last_packet.write_bytes_to(&mut buf)?;
                 conn.socket.send_to(
-                    conn.last_packet.to_bytes()?.to_slice(),
+                    buf.as_slice(),
                     &conn.remote,
                 )?;
             }
@@ -293,13 +295,13 @@ impl<IO: IOAdapter + Default> TftpServerImpl<IO> {
 
     /// Called to process an available I/O event for a token.
     /// Normally these correspond to packets received on a socket or to a timeout
-    fn handle_token(&mut self, token: Token, mut buf: &mut [u8]) -> Result<()> {
+    fn handle_token(&mut self, token: Token, buf: &mut [u8]) -> Result<()> {
         match token {
             TIMER => self.process_timer(),
             _ if self.server_sockets.contains_key(&token) => {
-                self.handle_server_packet(token, &mut buf)
+                self.handle_server_packet(token, buf)
             }
-            _ => self.handle_connection_packet(token, &mut buf),
+            _ => self.handle_connection_packet(token, buf),
         }
     }
 
@@ -330,7 +332,10 @@ impl<IO: IOAdapter + Default> TftpServerImpl<IO> {
         let socket = make_bound_socket(local_ip, None)?;
 
         // send packet back for all cases
-        socket.send_to(reply_packet.to_bytes()?.to_slice(), &src)?;
+        {
+            let amt = reply_packet.write_to_slice(buf)?;
+            socket.send_to(&buf[..amt], &src)?;
+        }
 
         if let Some(xfer) = xfer {
             self.create_connection(
@@ -385,8 +390,9 @@ impl<IO: IOAdapter + Default> TftpServerImpl<IO> {
         };
 
         if let Some(packet) = response {
+            let amt = packet.write_to_slice(buf)?;
             conn.socket.send_to(
-                packet.to_bytes()?.to_slice(),
+                &buf[..amt],
                 &conn.remote,
             )?;
         }
