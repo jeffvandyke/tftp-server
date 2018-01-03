@@ -15,18 +15,6 @@ use tftp_server::server::{Result, TftpServer, ServerConfig};
 
 const TIMEOUT: u64 = 3;
 
-use tftp_server::packet::{PacketData, PacketErr};
-trait PacketExt {
-    fn to_bytes(&self) -> std::result::Result<PacketData, PacketErr>;
-}
-
-impl PacketExt for Packet {
-    fn to_bytes(&self) -> std::result::Result<PacketData, PacketErr> {
-        let dup = self.clone();
-        dup.into_bytes()
-    }
-}
-
 fn create_socket(timeout: Option<Duration>) -> Result<UdpSocket> {
     let socket = UdpSocket::bind((IpAddr::from([127, 0, 0, 1]), 0))?;
     socket.set_nonblocking(false)?;
@@ -83,7 +71,7 @@ fn timeout_test(server_addr: &SocketAddr) -> Result<()> {
         mode: "octet".into(),
     };
     socket.send_to(
-        init_packet.into_bytes()?.to_slice(),
+        init_packet.into_bytes()?.as_slice(),
         server_addr,
     )?;
 
@@ -123,7 +111,7 @@ impl WritingTransfer {
             mode: "octet".into(),
         };
         xfer.socket
-            .send_to(init_packet.to_bytes().unwrap().to_slice(), &server_addr)
+            .send_to(init_packet.to_bytes().unwrap().as_slice(), &server_addr)
             .expect(&format!(
                 "cannot send initial packet {:?} to {:?}",
                 init_packet,
@@ -155,7 +143,7 @@ impl WritingTransfer {
         };
 
         self.socket
-            .send_to(data_packet.to_bytes().unwrap().to_slice(), &src)
+            .send_to(data_packet.to_bytes().unwrap().as_slice(), &src)
             .expect(&format!(
                 "cannot send packet {:?} to {:?}",
                 data_packet,
@@ -202,7 +190,7 @@ impl ReadingTransfer {
             mode: "octet".into(),
         };
         xfer.socket
-            .send_to(init_packet.to_bytes().unwrap().to_slice(), &server_addr)
+            .send_to(init_packet.to_bytes().unwrap().as_slice(), &server_addr)
             .expect(&format!(
                 "cannot send initial packet {:?} to {:?}",
                 init_packet,
@@ -228,7 +216,7 @@ impl ReadingTransfer {
 
             let ack_packet = Packet::ACK(self.block_num);
             self.socket
-                .send_to(ack_packet.to_bytes().unwrap().to_slice(), &src)
+                .send_to(ack_packet.to_bytes().unwrap().as_slice(), &src)
                 .expect(&format!("cannot send packet {:?} to {:?}", ack_packet, src));
 
             self.block_num = self.block_num.wrapping_add(1);
@@ -264,7 +252,7 @@ fn wrq_file_exists_test(server_addr: &SocketAddr) -> Result<()> {
         mode: "octet".into(),
     };
     socket.send_to(
-        init_packet.into_bytes()?.to_slice(),
+        init_packet.into_bytes()?.as_slice(),
         server_addr,
     )?;
 
@@ -282,7 +270,7 @@ fn rrq_file_not_found_test(server_addr: &SocketAddr) -> Result<()> {
         mode: "octet".into(),
     };
     socket.send_to(
-        init_packet.into_bytes()?.to_slice(),
+        init_packet.into_bytes()?.as_slice(),
         server_addr,
     )?;
 

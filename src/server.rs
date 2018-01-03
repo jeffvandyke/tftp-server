@@ -280,10 +280,8 @@ impl<IO: IOAdapter + Default> TftpServerImpl<IO> {
             {
                 self.cancel_connection(&token)?;
             } else if let Some(ref mut conn) = self.connections.get_mut(&token) {
-                let mut buf = Vec::with_capacity(MAX_PACKET_SIZE);
-                conn.last_packet.write_bytes_to(&mut buf)?;
                 conn.socket.send_to(
-                    buf.as_slice(),
+                    conn.last_packet.to_bytes()?.as_slice(),
                     &conn.remote,
                 )?;
             }
@@ -368,7 +366,7 @@ impl<IO: IOAdapter + Default> TftpServerImpl<IO> {
             conn.socket.send_to(
                 Packet::from(ErrorCode::UnknownID)
                     .into_bytes()?
-                    .to_slice(),
+                    .as_slice(),
                 &conn.remote,
             )?;
             return Ok(());

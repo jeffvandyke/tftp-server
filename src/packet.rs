@@ -102,16 +102,6 @@ impl From<ErrorCode> for Packet {
 
 pub const MAX_PACKET_SIZE: usize = 1024;
 
-/// The byte representation of a packet
-pub struct PacketData(Vec<u8>);
-
-impl PacketData {
-    /// Returns a byte slice that can be sent through a socket.
-    pub fn to_slice(&self) -> &[u8] {
-        self.0.as_slice()
-    }
-}
-
 #[derive(PartialEq, Clone, Debug)]
 pub enum Packet {
     RRQ { filename: String, mode: String },
@@ -135,10 +125,15 @@ impl Packet {
     }
 
     /// Consumes the packet and returns the packet in byte representation.
-    pub fn into_bytes(self) -> Result<PacketData> {
+    pub fn into_bytes(self) -> Result<Vec<u8>> {
+        self.to_bytes()
+    }
+
+    /// Returns a buffer containing the packet's byte representation
+    pub fn to_bytes(&self) -> Result<Vec<u8>> {
         let mut buf = Vec::with_capacity(MAX_PACKET_SIZE);
         self.write_bytes_to(&mut buf)?;
-        Ok(PacketData(buf))
+        Ok(buf)
     }
 
     /// Writes the packet bytes to the give slice, returning the amount of bytes written
@@ -151,7 +146,7 @@ impl Packet {
         Ok(sl.len() - left)
     }
 
-    pub fn write_bytes_to(&self, buf: &mut Write) -> Result<()> {
+    fn write_bytes_to(&self, buf: &mut Write) -> Result<()> {
         match *self {
             Packet::RRQ {
                 ref filename,
@@ -304,7 +299,7 @@ mod tests {
             fn $name() {
                 let bytes = $packet.clone().into_bytes();
                 assert!(bytes.is_ok());
-                let packet = bytes.and_then(|pd| Packet::read(pd.to_slice()));
+                let packet = bytes.and_then(|pd| Packet::read(pd.as_slice()));
                 assert!(packet.is_ok());
                 let _ = packet.map(|packet| { assert_eq!(packet, $packet); });
             }
