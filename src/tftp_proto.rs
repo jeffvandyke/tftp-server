@@ -1,4 +1,5 @@
 use std::io::{self, Read, Write};
+use std::fs::{self, File};
 use packet::{ErrorCode, Packet};
 use read_512::*;
 
@@ -37,6 +38,28 @@ pub trait IOAdapter {
     type W: Write + Sized;
     fn open_read(&self, filename: &str) -> io::Result<Self::R>;
     fn create_new(&mut self, filename: &str) -> io::Result<Self::W>;
+}
+
+/// Provides a simple, default implementation for `IOAdapter`.
+pub struct FSAdapter;
+
+impl IOAdapter for FSAdapter {
+    type R = File;
+    type W = File;
+    fn open_read(&self, filename: &str) -> io::Result<File> {
+        File::open(filename)
+    }
+    fn create_new(&mut self, filename: &str) -> io::Result<File> {
+        fs::OpenOptions::new().write(true).create_new(true).open(
+            filename,
+        )
+    }
+}
+
+impl Default for FSAdapter {
+    fn default() -> Self {
+        FSAdapter
+    }
 }
 
 /// The TFTP protocol and filesystem usage implementation,

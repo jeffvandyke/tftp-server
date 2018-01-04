@@ -3,7 +3,6 @@ use mio_more::timer::{Timer, TimerError, Timeout};
 use mio::net::UdpSocket;
 use packet::{ErrorCode, MAX_PACKET_SIZE, Packet, PacketErr};
 use std::collections::HashMap;
-use std::fs::{self, File};
 use std::io;
 use std::net::{self, SocketAddr, IpAddr};
 use std::result;
@@ -39,28 +38,6 @@ impl From<TimerError> for TftpError {
 }
 
 pub type Result<T> = result::Result<T, TftpError>;
-
-/// Provides a simple, default implementation for `IOAdapter`.
-pub struct FSAdapter;
-
-impl IOAdapter for FSAdapter {
-    type R = File;
-    type W = File;
-    fn open_read(&self, filename: &str) -> io::Result<File> {
-        File::open(filename)
-    }
-    fn create_new(&mut self, filename: &str) -> io::Result<File> {
-        fs::OpenOptions::new().write(true).create_new(true).open(
-            filename,
-        )
-    }
-}
-
-impl Default for FSAdapter {
-    fn default() -> Self {
-        FSAdapter
-    }
-}
 
 /// The state contained within a connection.
 /// A connection is started when a server socket receives
