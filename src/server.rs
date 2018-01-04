@@ -301,7 +301,7 @@ impl<IO: IOAdapter + Default> TftpServerImpl<IO> {
         }
     }
 
-    fn handle_server_packet(&mut self, token: Token, mut buf: &mut [u8]) -> Result<()> {
+    fn handle_server_packet(&mut self, token: Token, buf: &mut [u8]) -> Result<()> {
         let (local_ip, amt, src) = {
             let socket = match self.server_sockets.get(&token) {
                 Some(socket) => socket,
@@ -310,7 +310,7 @@ impl<IO: IOAdapter + Default> TftpServerImpl<IO> {
                     return Ok(());
                 }
             };
-            let (amt, src) = socket.recv_from(&mut buf)?;
+            let (amt, src) = socket.recv_from(buf)?;
             (socket.local_addr()?.ip(), amt, src)
         };
         let packet = Packet::read(&buf[..amt])?;
@@ -346,7 +346,7 @@ impl<IO: IOAdapter + Default> TftpServerImpl<IO> {
         Ok(())
     }
 
-    fn handle_connection_packet(&mut self, token: Token, mut buf: &mut [u8]) -> Result<()> {
+    fn handle_connection_packet(&mut self, token: Token, buf: &mut [u8]) -> Result<()> {
         use self::TftpResult::*;
 
         self.reset_timeout(&token)?;
@@ -357,7 +357,7 @@ impl<IO: IOAdapter + Default> TftpServerImpl<IO> {
                 return Ok(());
             }
         };
-        let (amt, src) = conn.socket.recv_from(&mut buf)?;
+        let (amt, src) = conn.socket.recv_from(buf)?;
 
         if conn.remote != src {
             // packet from somehere else, reply with error
