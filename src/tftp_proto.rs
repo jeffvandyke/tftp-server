@@ -73,30 +73,21 @@ impl<IO: IOAdapter> TftpServerProto<IO> {
             _ => return (None, Ok(ErrorCode::NotDefined.into())),
         }
 
-        if is_write {
-            self.handle_wrq(&filename)
+        let (xfer, packet) = if is_write {
+            let fwrite = match self.io_proxy.create_new(&filename) {
+                Ok(f) => f,
+                _ => return (None, Ok(ErrorCode::FileExists.into())),
+            };
+
+            Transfer::<IO>::new_write(fwrite)
         } else {
-            self.handle_rrq(&filename)
-        }
-    }
+            let fread = match self.io_proxy.open_read(&filename) {
+                Ok(f) => f,
+                _ => return (None, Ok(ErrorCode::FileNotFound.into())),
+            };
 
-    fn handle_wrq(&mut self, filename: &str) -> (Option<Transfer<IO>>, Result<Packet, TftpError>) {
-        let fwrite = match self.io_proxy.create_new(filename) {
-            Ok(f) => f,
-            _ => return (None, Ok(ErrorCode::FileExists.into())),
+            Transfer::<IO>::new_read(fread)
         };
-
-        let (xfer, packet) = Transfer::<IO>::new_write(fwrite);
-        (Some(xfer), Ok(packet))
-    }
-
-    fn handle_rrq(&mut self, filename: &str) -> (Option<Transfer<IO>>, Result<Packet, TftpError>) {
-        let fread = match self.io_proxy.open_read(filename) {
-            Ok(f) => f,
-            _ => return (None, Ok(ErrorCode::FileNotFound.into())),
-        };
-
-        let (xfer, packet) = Transfer::<IO>::new_read(fread);
         (Some(xfer), Ok(packet))
     }
 }
