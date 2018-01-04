@@ -296,9 +296,7 @@ impl<IO: IOAdapter + Default> TftpServerImpl<IO> {
     fn handle_token(&mut self, token: Token, buf: &mut [u8]) -> Result<()> {
         match token {
             TIMER => self.process_timer(),
-            _ if self.server_sockets.contains_key(&token) => {
-                self.handle_server_packet(token, buf)
-            }
+            _ if self.server_sockets.contains_key(&token) => self.handle_server_packet(token, buf),
             _ => self.handle_connection_packet(token, buf),
         }
     }
@@ -364,10 +362,7 @@ impl<IO: IOAdapter + Default> TftpServerImpl<IO> {
         if conn.remote != src {
             // packet from somehere else, reply with error
             let amt = Packet::from(ErrorCode::UnknownID).write_to_slice(buf)?;
-            conn.socket.send_to(
-                &buf[..amt],
-                &conn.remote,
-            )?;
+            conn.socket.send_to(&buf[..amt], &conn.remote)?;
             return Ok(());
         }
         let packet = Packet::read(&buf[..amt])?;
@@ -388,10 +383,7 @@ impl<IO: IOAdapter + Default> TftpServerImpl<IO> {
 
         if let Some(packet) = response {
             let amt = packet.write_to_slice(buf)?;
-            conn.socket.send_to(
-                &buf[..amt],
-                &conn.remote,
-            )?;
+            conn.socket.send_to(&buf[..amt], &conn.remote)?;
         }
         Ok(())
     }
