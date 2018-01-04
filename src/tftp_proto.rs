@@ -107,7 +107,6 @@ pub enum Transfer<IO: IOAdapter> {
     Tx(TransferTx<IO::R>),
     Complete,
 }
-use self::Transfer::*;
 
 pub struct TransferRx<W: Write> {
     fwrite: W,
@@ -153,6 +152,9 @@ impl<IO: IOAdapter> Transfer<IO> {
     ///
     /// Transfer completion can be checked via `Transfer::is_done()`
     pub fn rx(&mut self, packet: Packet) -> TftpResult {
+        if self.is_done() {
+            return TftpResult::Done(None);
+        }
         let result = match packet {
             Packet::ACK(ack_block) => self.handle_ack(ack_block),
             Packet::DATA { block_num, data } => self.handle_data(block_num, data),
@@ -170,23 +172,21 @@ impl<IO: IOAdapter> Transfer<IO> {
 
     fn handle_ack(&mut self, ack_block: u16) -> TftpResult {
         match *self {
-            Tx(ref mut tx) => tx.handle_ack(ack_block),
-            Rx(_) => {
+            Transfer::Tx(ref mut tx) => tx.handle_ack(ack_block),
+            _ => {
                 // wrong kind of packet, kill transfer
                 TftpResult::Done(Some(ErrorCode::IllegalTFTP.into()))
             }
-            Complete => TftpResult::Done(None),
         }
     }
 
     fn handle_data(&mut self, block_num: u16, data: Vec<u8>) -> TftpResult {
         match *self {
-            Rx(ref mut rx) => rx.handle_data(block_num, data),
-            Tx(_) => {
+            Transfer::Rx(ref mut rx) => rx.handle_data(block_num, data),
+            _ => {
                 // wrong kind of packet, kill transfer
                 TftpResult::Done(Some(ErrorCode::IllegalTFTP.into()))
             }
-            Complete => TftpResult::Done(None),
         }
     }
 }
