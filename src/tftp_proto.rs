@@ -62,24 +62,25 @@ impl<IO: IOAdapter> TftpServerProto<IO> {
         &mut self,
         packet: Packet,
     ) -> (Option<Transfer<IO>>, Result<Packet, TftpError>) {
-        match packet {
-            Packet::RRQ { filename, mode } => self.handle_rrq(&filename, &mode),
-            Packet::WRQ { filename, mode } => self.handle_wrq(&filename, &mode),
-            _ => (None, Err(TftpError::NotIniatingPacket)),
-        }
-    }
-
-    fn handle_wrq(
-        &mut self,
-        filename: &str,
-        mode: &str,
-    ) -> (Option<Transfer<IO>>, Result<Packet, TftpError>) {
-        match mode {
+        let (filename, mode, is_write) = match packet {
+            Packet::RRQ { filename, mode } => (filename, mode, false),
+            Packet::WRQ { filename, mode } => (filename, mode, true),
+            _ => return (None, Err(TftpError::NotIniatingPacket)),
+        };
+        match mode.as_ref() {
             "octet" => {}
             "mail" => return (None, Ok(ErrorCode::NoUser.into())),
             _ => return (None, Ok(ErrorCode::NotDefined.into())),
         }
 
+        if is_write {
+            self.handle_wrq(&filename)
+        } else {
+            self.handle_rrq(&filename)
+        }
+    }
+
+    fn handle_wrq(&mut self, filename: &str) -> (Option<Transfer<IO>>, Result<Packet, TftpError>) {
         let fwrite = match self.io_proxy.create_new(filename) {
             Ok(f) => f,
             _ => return (None, Ok(ErrorCode::FileExists.into())),
@@ -89,17 +90,7 @@ impl<IO: IOAdapter> TftpServerProto<IO> {
         (Some(Transfer::Rx(xfer)), Ok(Packet::ACK(0)))
     }
 
-    fn handle_rrq(
-        &mut self,
-        filename: &str,
-        mode: &str,
-    ) -> (Option<Transfer<IO>>, Result<Packet, TftpError>) {
-        match mode {
-            "octet" => {}
-            "mail" => return (None, Ok(ErrorCode::NoUser.into())),
-            _ => return (None, Ok(ErrorCode::NotDefined.into())),
-        }
-
+    fn handle_rrq(&mut self, filename: &str) -> (Option<Transfer<IO>>, Result<Packet, TftpError>) {
         let fread = match self.io_proxy.open_read(filename) {
             Ok(f) => f,
             _ => return (None, Ok(ErrorCode::FileNotFound.into())),
