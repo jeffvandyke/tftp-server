@@ -80,11 +80,13 @@ impl<IO: IOAdapter> TftpServerProto<IO> {
             _ => return (None, Ok(ErrorCode::NotDefined.into())),
         }
 
-        if let Ok(xfer) = Transfer::new_write(&mut self.io_proxy, filename) {
-            (Some(Transfer::Rx(xfer)), Ok(Packet::ACK(0)))
-        } else {
-            (None, Ok(ErrorCode::FileExists.into()))
-        }
+        let fwrite = match self.io_proxy.create_new(filename) {
+            Ok(f) => f,
+            _ => return (None, Ok(ErrorCode::FileExists.into())),
+        };
+
+        let xfer = Transfer::<IO>::new_write(fwrite);
+        (Some(Transfer::Rx(xfer)), Ok(Packet::ACK(0)))
     }
 
     fn handle_rrq(
@@ -98,20 +100,22 @@ impl<IO: IOAdapter> TftpServerProto<IO> {
             _ => return (None, Ok(ErrorCode::NotDefined.into())),
         }
 
-        if let Ok(mut xfer) = Transfer::new_read(&mut self.io_proxy, filename) {
-            let mut v = vec![];
-            xfer.fread.read_512(&mut v).unwrap();
-            xfer.sent_final = v.len() < 512;
-            (
-                Some(Transfer::Tx(xfer)),
-                Ok(Packet::DATA {
-                    block_num: 1,
-                    data: v,
-                }),
-            )
-        } else {
-            (None, Ok(ErrorCode::FileNotFound.into()))
-        }
+        let fread = match self.io_proxy.open_read(filename) {
+            Ok(f) => f,
+            _ => return (None, Ok(ErrorCode::FileNotFound.into())),
+        };
+
+        let mut xfer = Transfer::<IO>::new_read(fread);
+        let mut v = vec![];
+        xfer.fread.read_512(&mut v).unwrap();
+        xfer.sent_final = v.len() < 512;
+        (
+            Some(Transfer::Tx(xfer)),
+            Ok(Packet::DATA {
+                block_num: 1,
+                data: v,
+            }),
+        )
     }
 }
 
@@ -135,23 +139,19 @@ pub struct TransferTx<R: Read> {
 }
 
 impl<IO: IOAdapter> Transfer<IO> {
-    fn new_read(io: &mut IO, filename: &str) -> io::Result<TransferTx<IO::R>> {
-        io.open_read(filename).map(|fread| {
-            TransferTx {
-                fread,
-                expected_block_num: 1,
-                sent_final: false,
-            }
-        })
+    fn new_read(fread: IO::R) -> TransferTx<IO::R> {
+        TransferTx {
+            fread,
+            expected_block_num: 1,
+            sent_final: false,
+        }
     }
 
-    fn new_write(io: &mut IO, filename: &str) -> io::Result<TransferRx<IO::W>> {
-        io.create_new(filename).map(|fwrite| {
-            TransferRx {
-                fwrite,
-                expected_block_num: 1,
-            }
-        })
+    fn new_write(fwrite: IO::W) -> TransferRx<IO::W> {
+        TransferRx {
+            fwrite,
+            expected_block_num: 1,
+        }
     }
 
     /// Checks to see if the transfer has completed
