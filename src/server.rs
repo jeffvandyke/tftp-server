@@ -363,10 +363,9 @@ impl<IO: IOAdapter + Default> TftpServerImpl<IO> {
 
         if conn.remote != src {
             // packet from somehere else, reply with error
+            let amt = Packet::from(ErrorCode::UnknownID).write_to_slice(buf)?;
             conn.socket.send_to(
-                Packet::from(ErrorCode::UnknownID)
-                    .into_bytes()?
-                    .as_slice(),
+                &buf[..amt],
                 &conn.remote,
             )?;
             return Ok(());
