@@ -86,8 +86,8 @@ impl<IO: IOAdapter> TftpServerProto<IO> {
             _ => return (None, Ok(ErrorCode::FileExists.into())),
         };
 
-        let xfer = Transfer::<IO>::new_write(fwrite);
-        (Some(Transfer::Rx(xfer)), Ok(Packet::ACK(0)))
+        let (xfer, packet) = Transfer::<IO>::new_write(fwrite);
+        (Some(xfer), Ok(packet))
     }
 
     fn handle_rrq(&mut self, filename: &str) -> (Option<Transfer<IO>>, Result<Packet, TftpError>) {
@@ -96,17 +96,8 @@ impl<IO: IOAdapter> TftpServerProto<IO> {
             _ => return (None, Ok(ErrorCode::FileNotFound.into())),
         };
 
-        let mut xfer = Transfer::<IO>::new_read(fread);
-        let mut v = vec![];
-        xfer.fread.read_512(&mut v).unwrap();
-        xfer.sent_final = v.len() < 512;
-        (
-            Some(Transfer::Tx(xfer)),
-            Ok(Packet::DATA {
-                block_num: 1,
-                data: v,
-            }),
-        )
+        let (xfer, packet) = Transfer::<IO>::new_read(fread);
+        (Some(xfer), Ok(packet))
     }
 }
 
@@ -130,19 +121,22 @@ pub struct TransferTx<R: Read> {
 }
 
 impl<IO: IOAdapter> Transfer<IO> {
-    fn new_read(fread: IO::R) -> TransferTx<IO::R> {
-        TransferTx {
+    fn new_read(fread: IO::R) -> (Transfer<IO>, Packet) {
+        let mut xfer = TransferTx {
             fread,
-            expected_block_num: 1,
+            expected_block_num: 0,
             sent_final: false,
-        }
+        };
+        let packet = xfer.read_step();
+        (Transfer::Tx(xfer), packet)
     }
 
-    fn new_write(fwrite: IO::W) -> TransferRx<IO::W> {
-        TransferRx {
+    fn new_write(fwrite: IO::W) -> (Transfer<IO>, Packet) {
+        let xfer = TransferRx {
             fwrite,
             expected_block_num: 1,
-        }
+        };
+        (Transfer::Rx(xfer), Packet::ACK(0))
     }
 
     /// Checks to see if the transfer has completed
@@ -209,14 +203,18 @@ impl<R: Read> TransferTx<R> {
         } else if self.sent_final {
             TftpResult::Done(None)
         } else {
-            let mut v = vec![];
-            self.fread.read_512(&mut v).unwrap();
-            self.sent_final = v.len() < 512;
-            self.expected_block_num = self.expected_block_num.wrapping_add(1);
-            TftpResult::Reply(Packet::DATA {
-                block_num: self.expected_block_num,
-                data: v,
-            })
+            TftpResult::Reply(self.read_step())
+        }
+    }
+
+    fn read_step(&mut self) -> Packet {
+        let mut v = vec![];
+        self.fread.read_512(&mut v).unwrap();
+        self.sent_final = v.len() < 512;
+        self.expected_block_num = self.expected_block_num.wrapping_add(1);
+        Packet::DATA {
+            block_num: self.expected_block_num,
+            data: v,
         }
     }
 }
