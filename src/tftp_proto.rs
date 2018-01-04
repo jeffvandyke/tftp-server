@@ -289,7 +289,6 @@ impl<IO: IOAdapter> IOAdapter for IOPolicyProxy<IO> {
     type R = IO::R;
     type W = IO::W;
     fn open_read(&self, filename: &str) -> io::Result<Self::R> {
-        // TODO: test refusal to serve above directory
         if filename.contains("..") || filename.starts_with('/') {
             Err(io::Error::new(
                 io::ErrorKind::PermissionDenied,

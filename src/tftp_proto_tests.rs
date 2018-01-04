@@ -588,6 +588,63 @@ fn policy_remap_directory() {
     assert!(proxy.create_new("file_b").is_ok());
 }
 
+#[test]
+fn policy_refuse_file_read_outside_cwd() {
+    let mut iof = TestIoFactory::new();
+    let amt = 100;
+    let file_a = "./../file_a".to_owned();
+    let file_b = "/foo/bar".to_owned();
+    iof.possible_files.insert(file_a.clone(), amt);
+    iof.server_present_files.insert(file_a.clone());
+    iof.possible_files.insert(file_b.clone(), amt);
+    iof.server_present_files.insert(file_b.clone());
+
+    let proxy = IOPolicyProxy::new(
+        iof,
+        IOPolicyCfg {
+            readonly: false,
+            path: None,
+        },
+    );
+
+    assert_matches!(
+        proxy.open_read("./../file_a"),
+        Err(ref e) if e.kind() == io::ErrorKind::PermissionDenied
+    );
+    assert_matches!(
+        proxy.open_read("/foo/bar"),
+        Err(ref e) if e.kind() == io::ErrorKind::PermissionDenied
+    );
+}
+
+#[test]
+fn policy_refuse_file_write_outside_cwd() {
+    let mut iof = TestIoFactory::new();
+    let amt = 100;
+
+    let w_file_a = "./../w_file_a".to_owned();
+    let w_file_b = "/boo/han".to_owned();
+    iof.possible_files.insert(w_file_a.clone(), amt);
+    iof.possible_files.insert(w_file_b.clone(), amt);
+
+    let mut proxy = IOPolicyProxy::new(
+        iof,
+        IOPolicyCfg {
+            readonly: false,
+            path: None,
+        },
+    );
+
+    assert_matches!(
+        proxy.create_new("./../w_file_a"),
+        Err(ref e) if e.kind() == io::ErrorKind::PermissionDenied
+    );
+    assert_matches!(
+        proxy.create_new("/boo/han"),
+        Err(ref e) if e.kind() == io::ErrorKind::PermissionDenied
+    );
+}
+
 struct TestIoFactory {
     server_present_files: HashSet<String>,
     possible_files: HashMap<String, usize>,
@@ -644,6 +701,7 @@ impl IOAdapter for TestIoFactory {
     }
 }
 
+#[derive(Debug)]
 struct ByteGen {
     crt: u8,
     count: u8,
@@ -670,6 +728,7 @@ impl Iterator for ByteGen {
     }
 }
 
+#[derive(Debug)]
 struct GeneratingReader {
     gen: Take<ByteGen>,
 }
@@ -694,6 +753,7 @@ impl Read for GeneratingReader {
     }
 }
 
+#[derive(Debug)]
 struct ExpectingWriter {
     gen: Take<ByteGen>,
     enforce_full_write: bool,
