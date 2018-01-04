@@ -141,7 +141,7 @@ impl<IO: IOAdapter> Transfer<IO> {
     /// Checks to see if the transfer has completed
     pub fn is_done(&self) -> bool {
         match *self {
-            Complete => true,
+            Transfer::Complete => true,
             _ => false,
         }
     }
@@ -165,7 +165,7 @@ impl<IO: IOAdapter> Transfer<IO> {
             _ => TftpResult::Err(TftpError::TransferAlreadyRunning),
         };
         if let TftpResult::Done(_) = result {
-            *self = Complete;
+            *self = Transfer::Complete;
         }
         result
     }
