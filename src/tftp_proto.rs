@@ -181,7 +181,7 @@ impl<IO: IOAdapter> Transfer<IO> {
             }
             Packet::DATA { block_num, data } => {
                 match *self {
-                    Transfer::Rx(ref mut rx) => rx.handle_data(block_num, data),
+                    Transfer::Rx(ref mut rx) => rx.handle_data(block_num, &data),
                     _ => {
                         // wrong kind of packet, kill transfer
                         TftpResult::Done(Some(ErrorCode::IllegalTFTP.into()))
@@ -230,14 +230,14 @@ impl<R: Read> TransferTx<R> {
 }
 
 impl<W: Write> TransferRx<W> {
-    fn handle_data(&mut self, block_num: u16, data: Vec<u8>) -> TftpResult {
+    fn handle_data(&mut self, block_num: u16, data: &[u8]) -> TftpResult {
         if block_num != self.expected_block_num {
             TftpResult::Done(Some(Packet::ERROR {
                 code: ErrorCode::IllegalTFTP,
                 msg: "Data packet lost".to_owned(),
             }))
         } else {
-            self.fwrite.write_all(data.as_slice()).unwrap();
+            self.fwrite.write_all(data).unwrap();
             self.expected_block_num = block_num.wrapping_add(1);
             if data.len() < 512 {
                 TftpResult::Done(Some(Packet::ACK(block_num)))
