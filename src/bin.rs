@@ -82,31 +82,31 @@ fn main() {
             ]
         });
 
-    let timeout = Duration::from_secs(
-        matches
-            .value_of(arg_timeout)
-            .map(|s| {
-                u64::from_str(s).expect(&format!("error parsing \"{}\" as timeout", s))
-            })
-            .map(|n| if n == 0 {
+    let timeout = matches
+        .value_of(arg_timeout)
+        .map(|s| {
+            let n = u64::from_str(s).expect(&format!("error parsing \"{}\" as timeout", s));
+            if n == 0 {
                 panic!("timeout may not be 0 seconds")
-            } else {
-                n
-            })
-            .unwrap_or(3),
-    );
+            }
+            n
+        })
+        .unwrap_or(3);
+    let timeout = Duration::from_secs(timeout);
+
+    let dir = matches.value_of(arg_dir).map(|dir| {
+        assert!(
+            Path::new(dir).exists(),
+            "specified path \"{}\" does not exist",
+            dir
+        );
+        dir.to_owned()
+    });
 
     let cfg = ServerConfig {
         readonly: matches.is_present(arg_readonly),
         addrs,
-        dir: matches.value_of(arg_dir).map(|dir| {
-            assert!(
-                Path::new(dir).exists(),
-                "specified path \"{}\" does not exist",
-                dir
-            );
-            dir.into()
-        }),
+        dir,
         timeout,
     };
 
