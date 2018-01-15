@@ -4,6 +4,7 @@ use mio::net::UdpSocket;
 use packet::{ErrorCode, MAX_PACKET_SIZE, Packet, PacketErr};
 use std::collections::HashMap;
 use std::io;
+use std::path::PathBuf;
 use std::net::{self, SocketAddr, IpAddr};
 use std::result;
 use std::time::Duration;
@@ -63,7 +64,7 @@ pub struct ServerConfig {
     /// Specifies that the server should reject write requests
     pub readonly: bool,
     /// The directory the server will serve from instead of the default
-    pub dir: Option<String>,
+    pub dir: Option<PathBuf>,
     /// The IP addresses (and optionally ports) on which the server must listen
     pub addrs: Vec<(IpAddr, Option<u16>)>,
     /// The idle time until a connection with a client is closed

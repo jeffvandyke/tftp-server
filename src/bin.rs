@@ -95,12 +95,9 @@ fn main() {
     let timeout = Duration::from_secs(timeout);
 
     let dir = matches.value_of(arg_dir).map(|dir| {
-        assert!(
-            Path::new(dir).exists(),
-            "specified path \"{}\" does not exist",
-            dir
-        );
-        dir.to_owned()
+        let path = Path::new(dir);
+        assert!(path.exists(), "specified path \"{}\" does not exist", dir);
+        path.to_owned()
     });
 
     let cfg = ServerConfig {

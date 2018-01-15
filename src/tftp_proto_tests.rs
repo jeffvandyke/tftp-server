@@ -1,6 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use std::io::{self, Read, Write};
 use std::iter::Take;
+use std::path::Path;
 use packet::{ErrorCode, Packet};
 use tftp_proto::*;
 
@@ -548,7 +549,7 @@ fn policy_readonly() {
     let mut v = vec![];
     assert_eq!(
         proxy
-            .open_read(&file_a)
+            .open_read(file_a.as_ref())
             .unwrap()
             .read_to_end(&mut v)
             .unwrap(),
@@ -557,7 +558,7 @@ fn policy_readonly() {
     assert_eq!(v.len(), amt);
 
     let mut proxy = proxy;
-    if let Ok(_) = proxy.create_new(&file_b) {
+    if let Ok(_) = proxy.create_new(file_b.as_ref()) {
         panic!("create should not succeed");
     }
 }
@@ -581,11 +582,11 @@ fn policy_remap_directory() {
             path: Some("the_new_path".into()),
         },
     );
-    assert!(proxy.open_read("the_new_path/file_a").is_err());
-    assert!(proxy.open_read("file_a").is_ok());
+    assert!(proxy.open_read("the_new_path/file_a".as_ref()).is_err());
+    assert!(proxy.open_read("file_a".as_ref()).is_ok());
 
-    assert!(proxy.create_new("the_new_path/file_b").is_err());
-    assert!(proxy.create_new("file_b").is_ok());
+    assert!(proxy.create_new("the_new_path/file_b".as_ref()).is_err());
+    assert!(proxy.create_new("file_b".as_ref()).is_ok());
 }
 
 #[test]
@@ -608,11 +609,11 @@ fn policy_refuse_file_read_outside_cwd() {
     );
 
     assert_matches!(
-        proxy.open_read("./../file_a"),
+        proxy.open_read("./../file_a".as_ref()),
         Err(ref e) if e.kind() == io::ErrorKind::PermissionDenied
     );
     assert_matches!(
-        proxy.open_read("/foo/bar"),
+        proxy.open_read("/foo/bar".as_ref()),
         Err(ref e) if e.kind() == io::ErrorKind::PermissionDenied
     );
 }
@@ -636,15 +637,16 @@ fn policy_refuse_file_write_outside_cwd() {
     );
 
     assert_matches!(
-        proxy.create_new("./../w_file_a"),
+        proxy.create_new("./../w_file_a".as_ref()),
         Err(ref e) if e.kind() == io::ErrorKind::PermissionDenied
     );
     assert_matches!(
-        proxy.create_new("/boo/han"),
+        proxy.create_new("/boo/han".as_ref()),
         Err(ref e) if e.kind() == io::ErrorKind::PermissionDenied
     );
 }
 
+// TODO: maybe switch tests to use paths ?
 struct TestIoFactory {
     server_present_files: HashSet<String>,
     possible_files: HashMap<String, usize>,
@@ -662,7 +664,8 @@ impl TestIoFactory {
 impl IOAdapter for TestIoFactory {
     type R = GeneratingReader;
     type W = ExpectingWriter;
-    fn open_read(&self, filename: &str) -> io::Result<Self::R> {
+    fn open_read(&self, file: &Path) -> io::Result<Self::R> {
+        let filename = file.to_str().expect("not a valid string");
         if self.server_present_files.contains(filename) {
             let size = *self.possible_files.get(filename).unwrap();
             Ok(GeneratingReader::new(filename, size))
@@ -678,7 +681,8 @@ impl IOAdapter for TestIoFactory {
             ))
         }
     }
-    fn create_new(&mut self, filename: &str) -> io::Result<ExpectingWriter> {
+    fn create_new(&mut self, file: &Path) -> io::Result<ExpectingWriter> {
+        let filename = file.to_str().expect("not a valid string");
         if self.server_present_files.contains(filename) {
             Err(io::Error::new(
                 io::ErrorKind::AlreadyExists,

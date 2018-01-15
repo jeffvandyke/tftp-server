@@ -1,5 +1,6 @@
 use std::io::{self, Read, Write};
 use std::fs::{self, File};
+use std::path::{Component, PathBuf, Path};
 use packet::{ErrorCode, Packet};
 use read_512::*;
 
@@ -36,8 +37,8 @@ pub enum TftpError {
 pub trait IOAdapter {
     type R: Read + Sized;
     type W: Write + Sized;
-    fn open_read(&self, filename: &str) -> io::Result<Self::R>;
-    fn create_new(&mut self, filename: &str) -> io::Result<Self::W>;
+    fn open_read(&self, file: &Path) -> io::Result<Self::R>;
+    fn create_new(&mut self, file: &Path) -> io::Result<Self::W>;
 }
 
 /// Provides a simple, default implementation for `IOAdapter`.
@@ -46,12 +47,12 @@ pub struct FSAdapter;
 impl IOAdapter for FSAdapter {
     type R = File;
     type W = File;
-    fn open_read(&self, filename: &str) -> io::Result<File> {
-        File::open(filename)
+    fn open_read(&self, file: &Path) -> io::Result<File> {
+        File::open(file)
     }
-    fn create_new(&mut self, filename: &str) -> io::Result<File> {
+    fn create_new(&mut self, file: &Path) -> io::Result<File> {
         fs::OpenOptions::new().write(true).create_new(true).open(
-            filename,
+            file,
         )
     }
 }
@@ -95,16 +96,17 @@ impl<IO: IOAdapter> TftpServerProto<IO> {
             "mail" => return (None, Ok(ErrorCode::NoUser.into())),
             _ => return (None, Ok(ErrorCode::NotDefined.into())),
         }
+        let file = Path::new(&filename);
 
         let (xfer, packet) = if is_write {
-            let fwrite = match self.io_proxy.create_new(&filename) {
+            let fwrite = match self.io_proxy.create_new(file) {
                 Ok(f) => f,
                 _ => return (None, Ok(ErrorCode::FileExists.into())),
             };
 
             Transfer::<IO>::new_write(fwrite)
         } else {
-            let fread = match self.io_proxy.open_read(&filename) {
+            let fread = match self.io_proxy.open_read(file) {
                 Ok(f) => f,
                 _ => return (None, Ok(ErrorCode::FileNotFound.into())),
             };
@@ -250,7 +252,7 @@ impl<W: Write> TransferRx<W> {
 
 pub struct IOPolicyCfg {
     pub readonly: bool,
-    pub path: Option<String>,
+    pub path: Option<PathBuf>,
 }
 
 impl Default for IOPolicyCfg {
@@ -276,31 +278,41 @@ impl<IO: IOAdapter> IOPolicyProxy<IO> {
 impl<IO: IOAdapter> IOAdapter for IOPolicyProxy<IO> {
     type R = IO::R;
     type W = IO::W;
-    fn open_read(&self, filename: &str) -> io::Result<Self::R> {
-        if filename.contains("..") || filename.starts_with('/') {
+    fn open_read(&self, file: &Path) -> io::Result<Self::R> {
+        if file.is_absolute() ||
+            file.components().any(|c| match c {
+                Component::RootDir | Component::ParentDir => true,
+                _ => false,
+            })
+        {
             Err(io::Error::new(
                 io::ErrorKind::PermissionDenied,
                 "cannot read",
             ))
         } else if let Some(ref path) = self.policy.path {
-            let full = path.to_owned() + "/" + filename;
+            let full = path.clone().join(file);
             self.io.open_read(&full)
         } else {
-            self.io.open_read(filename)
+            self.io.open_read(file)
         }
     }
 
-    fn create_new(&mut self, filename: &str) -> io::Result<Self::W> {
-        if self.policy.readonly || filename.contains("..") || filename.starts_with('/') {
+    fn create_new(&mut self, file: &Path) -> io::Result<Self::W> {
+        if self.policy.readonly || file.is_absolute() ||
+            file.components().any(|c| match c {
+                Component::RootDir | Component::ParentDir => true,
+                _ => false,
+            })
+        {
             Err(io::Error::new(
                 io::ErrorKind::PermissionDenied,
                 "cannot write",
             ))
         } else if let Some(ref path) = self.policy.path {
-            let full = path.to_owned() + "/" + filename;
+            let full = path.clone().join(file);
             self.io.create_new(&full)
         } else {
-            self.io.create_new(filename)
+            self.io.create_new(file)
         }
     }
 }
