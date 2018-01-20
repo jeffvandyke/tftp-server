@@ -6,12 +6,12 @@ extern crate assert_matches;
 
 use std::fs::{self, File};
 use std::io::{Read, Write};
-use std::net::{SocketAddr, IpAddr, UdpSocket};
+use std::net::{IpAddr, SocketAddr, UdpSocket};
 use std::thread;
 use std::time::Duration;
 use std::borrow::BorrowMut;
 use tftp_server::packet::{ErrorCode, Packet, MAX_PACKET_SIZE};
-use tftp_server::server::{Result, TftpServer, ServerConfig};
+use tftp_server::server::{Result, ServerConfig, TftpServer};
 
 const TIMEOUT: u64 = 3;
 
@@ -70,16 +70,12 @@ fn timeout_test(server_addr: &SocketAddr) -> Result<()> {
         filename: "hello.txt".into(),
         mode: "octet".into(),
     };
-    socket.send_to(
-        init_packet.into_bytes()?.as_slice(),
-        server_addr,
-    )?;
+    socket.send_to(init_packet.into_bytes()?.as_slice(), server_addr)?;
 
     let mut buf = [0; MAX_PACKET_SIZE];
     let amt = socket.recv(&mut buf)?;
     let reply_packet = Packet::read(&buf[0..amt])?;
     assert_eq!(reply_packet, Packet::ACK(0));
-
 
     let mut buf = [0; MAX_PACKET_SIZE];
     let amt = socket.recv(&mut buf)?;
@@ -114,8 +110,7 @@ impl WritingTransfer {
             .send_to(init_packet.to_bytes().unwrap().as_slice(), &server_addr)
             .expect(&format!(
                 "cannot send initial packet {:?} to {:?}",
-                init_packet,
-                server_addr
+                init_packet, server_addr
             ));
         xfer
     }
@@ -146,8 +141,7 @@ impl WritingTransfer {
             .send_to(data_packet.to_bytes().unwrap().as_slice(), &src)
             .expect(&format!(
                 "cannot send packet {:?} to {:?}",
-                data_packet,
-                src
+                data_packet, src
             ));
         Some(())
     }
@@ -193,8 +187,7 @@ impl ReadingTransfer {
             .send_to(init_packet.to_bytes().unwrap().as_slice(), &server_addr)
             .expect(&format!(
                 "cannot send initial packet {:?} to {:?}",
-                init_packet,
-                server_addr
+                init_packet, server_addr
             ));
         xfer
     }
@@ -210,9 +203,9 @@ impl ReadingTransfer {
         let received = Packet::read(&rx_buf[0..amt]).unwrap();
         if let Packet::DATA { block_num, data } = received {
             assert_eq!(self.block_num, block_num);
-            self.file.write_all(&data).expect(
-                "cannot write to local file",
-            );
+            self.file
+                .write_all(&data)
+                .expect("cannot write to local file");
 
             let ack_packet = Packet::ACK(self.block_num);
             self.socket
@@ -251,10 +244,7 @@ fn wrq_file_exists_test(server_addr: &SocketAddr) -> Result<()> {
         filename: "./files/hello.txt".into(),
         mode: "octet".into(),
     };
-    socket.send_to(
-        init_packet.into_bytes()?.as_slice(),
-        server_addr,
-    )?;
+    socket.send_to(init_packet.into_bytes()?.as_slice(), server_addr)?;
 
     let mut buf = [0; MAX_PACKET_SIZE];
     let amt = socket.recv(&mut buf)?;
@@ -269,10 +259,7 @@ fn rrq_file_not_found_test(server_addr: &SocketAddr) -> Result<()> {
         filename: "./hello.txt".into(),
         mode: "octet".into(),
     };
-    socket.send_to(
-        init_packet.into_bytes()?.as_slice(),
-        server_addr,
-    )?;
+    socket.send_to(init_packet.into_bytes()?.as_slice(), server_addr)?;
 
     let mut buf = [0; MAX_PACKET_SIZE];
     let amt = socket.recv(&mut buf)?;

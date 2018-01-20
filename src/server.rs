@@ -1,11 +1,11 @@
 use mio::*;
-use mio_more::timer::{Timer, TimerError, Timeout};
+use mio_more::timer::{Timeout, Timer, TimerError};
 use mio::net::UdpSocket;
-use packet::{ErrorCode, MAX_PACKET_SIZE, Packet, PacketErr};
+use packet::{ErrorCode, Packet, PacketErr, MAX_PACKET_SIZE};
 use std::collections::HashMap;
 use std::io;
 use std::path::PathBuf;
-use std::net::{self, SocketAddr, IpAddr};
+use std::net::{self, IpAddr, SocketAddr};
 use std::result;
 use std::time::Duration;
 use tftp_proto::*;
@@ -178,8 +178,8 @@ impl<IO: IOAdapter + Default> TftpServerImpl<IO> {
         {
             panic!("no more tokens, but impressive amount of memory");
         }
-        while self.new_token == TIMER || self.server_sockets.contains_key(&self.new_token) ||
-            self.connections.contains_key(&self.new_token)
+        while self.new_token == TIMER || self.server_sockets.contains_key(&self.new_token)
+            || self.connections.contains_key(&self.new_token)
         {
             self.new_token.0 = self.new_token.0.wrapping_add(1);
         }
@@ -251,17 +251,15 @@ impl<IO: IOAdapter + Default> TftpServerImpl<IO> {
         }
 
         for token in tokens {
-            if Some(true) ==
-                self.connections.get(&token).map(
-                    |conn| conn.transfer.is_done(),
-                )
+            if Some(true)
+                == self.connections
+                    .get(&token)
+                    .map(|conn| conn.transfer.is_done())
             {
                 self.cancel_connection(&token)?;
             } else if let Some(ref mut conn) = self.connections.get_mut(&token) {
-                conn.socket.send_to(
-                    conn.last_packet.to_bytes()?.as_slice(),
-                    &conn.remote,
-                )?;
+                conn.socket
+                    .send_to(conn.last_packet.to_bytes()?.as_slice(), &conn.remote)?;
             }
             self.reset_timeout(&token)?;
         }
@@ -312,13 +310,7 @@ impl<IO: IOAdapter + Default> TftpServerImpl<IO> {
         }
 
         if let Some(xfer) = xfer {
-            self.create_connection(
-                new_conn_token,
-                socket,
-                xfer,
-                reply_packet,
-                src,
-            )?;
+            self.create_connection(new_conn_token, socket, xfer, reply_packet, src)?;
         }
 
         Ok(())
@@ -351,8 +343,7 @@ impl<IO: IOAdapter + Default> TftpServerImpl<IO> {
                 None
             }
             Repeat => Some(&conn.last_packet),
-            Reply(packet) |
-            Done(Some(packet)) => {
+            Reply(packet) | Done(Some(packet)) => {
                 conn.last_packet = packet;
                 Some(&conn.last_packet)
             }
@@ -376,8 +367,7 @@ impl<IO: IOAdapter + Default> TftpServerImpl<IO> {
 
             for event in events.iter() {
                 match self.handle_token(event.token(), &mut scratch_buf) {
-                    Ok(_) |
-                    Err(TftpError::IoError(_)) => { /* swallow Io errors */ }
+                    Ok(_) | Err(TftpError::IoError(_)) => { /* swallow Io errors */ }
                     Err(TftpError::PacketError(_)) => {
                         error!("malformed packet");
                     }

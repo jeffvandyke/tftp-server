@@ -4,13 +4,13 @@ extern crate tftp_server;
 #[macro_use]
 extern crate clap;
 
-use tftp_server::server::{TftpServer, ServerConfig};
+use tftp_server::server::{ServerConfig, TftpServer};
 use std::str::FromStr;
 use std::net::*;
 use std::path::Path;
 use std::time::Duration;
 
-use clap::{Arg, App};
+use clap::{App, Arg};
 
 fn main() {
     env_logger::init().unwrap();
@@ -22,9 +22,7 @@ fn main() {
 
     // TODO: test argument handling
     let matches = App::new("TFTP Server")
-        .about(
-            "A server implementation of the TFTP Protocol (IETF RFC 1350)",
-        )
+        .about("A server implementation of the TFTP Protocol (IETF RFC 1350)")
         .version(crate_version!())
         .arg(
             Arg::with_name(arg_ip)
@@ -47,9 +45,7 @@ fn main() {
             Arg::with_name(arg_timeout)
                 .short("t")
                 .long("timeout")
-                .help(
-                    "the (non-zero) number of seconds before an idle transfer is terminated",
-                )
+                .help("the (non-zero) number of seconds before an idle transfer is terminated")
                 .takes_value(true)
                 .value_name("SECONDS"),
         )

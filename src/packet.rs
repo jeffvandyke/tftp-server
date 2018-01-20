@@ -1,6 +1,6 @@
-use std::{result, str, io};
+use std::{io, result, str};
 use std::io::Write;
-use byteorder::{ReadBytesExt, WriteBytesExt, BigEndian};
+use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use read_512::Read512;
 
 #[derive(Debug)]
@@ -79,15 +79,15 @@ impl ErrorCode {
     /// Returns the string description of the error code.
     pub fn to_string(&self) -> String {
         (match *self {
-             ErrorCode::NotDefined => "Not defined, see error message (if any).",
-             ErrorCode::FileNotFound => "File not found.",
-             ErrorCode::AccessViolation => "Access violation.",
-             ErrorCode::DiskFull => "Disk full or allocation exceeded.",
-             ErrorCode::IllegalTFTP => "Illegal TFTP operation.",
-             ErrorCode::UnknownID => "Unknown transfer ID.",
-             ErrorCode::FileExists => "File already exists.",
-             ErrorCode::NoUser => "No such user.",
-         }).to_string()
+            ErrorCode::NotDefined => "Not defined, see error message (if any).",
+            ErrorCode::FileNotFound => "File not found.",
+            ErrorCode::AccessViolation => "Access violation.",
+            ErrorCode::DiskFull => "Disk full or allocation exceeded.",
+            ErrorCode::IllegalTFTP => "Illegal TFTP operation.",
+            ErrorCode::UnknownID => "Unknown transfer ID.",
+            ErrorCode::FileExists => "File already exists.",
+            ErrorCode::NoUser => "No such user.",
+        }).to_string()
     }
 }
 

@@ -35,7 +35,13 @@ fn rrq_no_file_gets_error() {
         filename: file,
         mode: "octet".into(),
     });
-    assert_matches!(res, Ok(Packet::ERROR { code: ErrorCode::FileNotFound , ..  }));
+    assert_matches!(
+        res,
+        Ok(Packet::ERROR {
+            code: ErrorCode::FileNotFound,
+            ..
+        })
+    );
     assert!(xfer.is_none());
 }
 
@@ -46,7 +52,13 @@ fn rrq_mail_gets_error() {
         filename: file,
         mode: "mail".into(),
     });
-    assert_matches!(res, Ok(Packet::ERROR { code: ErrorCode::NoUser , ..  }));
+    assert_matches!(
+        res,
+        Ok(Packet::ERROR {
+            code: ErrorCode::NoUser,
+            ..
+        })
+    );
     assert!(xfer.is_none());
 }
 
@@ -57,7 +69,13 @@ fn rrq_netascii_gets_error() {
         filename: file,
         mode: "netascii".into(),
     });
-    assert_matches!(res, Ok(Packet::ERROR { code: ErrorCode::NotDefined , ..  }));
+    assert_matches!(
+        res,
+        Ok(Packet::ERROR {
+            code: ErrorCode::NotDefined,
+            ..
+        })
+    );
     assert!(xfer.is_none());
 }
 
@@ -68,7 +86,13 @@ fn wrq_netascii_gets_error() {
         filename: file,
         mode: "netascii".into(),
     });
-    assert_matches!(res, Ok(Packet::ERROR { code: ErrorCode::NotDefined , ..  }));
+    assert_matches!(
+        res,
+        Ok(Packet::ERROR {
+            code: ErrorCode::NotDefined,
+            ..
+        })
+    );
     assert!(xfer.is_none());
 }
 
@@ -173,7 +197,10 @@ fn rrq_small_file_reply_with_data_illegal() {
             data: vec![],
             block_num: 1,
         }),
-        TftpResult::Done(Some(Packet::ERROR { code: ErrorCode::IllegalTFTP, ..  }))
+        TftpResult::Done(Some(Packet::ERROR {
+            code: ErrorCode::IllegalTFTP,
+            ..
+        }))
     );
     assert_eq!(xfer.rx(Packet::ACK(0)), TftpResult::Done(None));
 }
@@ -353,7 +380,13 @@ fn wrq_already_exists_error() {
         filename: file,
         mode: "octet".into(),
     });
-    assert_matches!(res, Ok(Packet::ERROR { code: ErrorCode::FileExists , ..  }));
+    assert_matches!(
+        res,
+        Ok(Packet::ERROR {
+            code: ErrorCode::FileExists,
+            ..
+        })
+    );
     assert!(xfer.is_none());
 }
 
@@ -385,7 +418,13 @@ fn wrq_mail_gets_error() {
         filename: file,
         mode: "mail".into(),
     });
-    assert_matches!(res, Ok(Packet::ERROR { code: ErrorCode::NoUser , ..  }));
+    assert_matches!(
+        res,
+        Ok(Packet::ERROR {
+            code: ErrorCode::NoUser,
+            ..
+        })
+    );
     assert!(xfer.is_none());
 }
 
@@ -459,7 +498,10 @@ fn wrq_small_file_reply_with_ack_illegal() {
     );
     assert_matches!(
         xfer.rx(Packet::ACK(3)),
-        TftpResult::Done(Some(Packet::ERROR { code: ErrorCode::IllegalTFTP, ..  }))
+        TftpResult::Done(Some(Packet::ERROR {
+            code: ErrorCode::IllegalTFTP,
+            ..
+        }))
     );
     assert_eq!(
         xfer.rx(Packet::DATA {
@@ -738,7 +780,9 @@ struct GeneratingReader {
 }
 impl GeneratingReader {
     fn new(s: &str, amt: usize) -> Self {
-        Self { gen: ByteGen::new(s).take(amt) }
+        Self {
+            gen: ByteGen::new(s).take(amt),
+        }
     }
 }
 impl Read for GeneratingReader {

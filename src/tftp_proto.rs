@@ -1,6 +1,6 @@
 use std::io::{self, Read, Write};
 use std::fs::{self, File};
-use std::path::{Component, PathBuf, Path};
+use std::path::{Component, Path, PathBuf};
 use packet::{ErrorCode, Packet};
 use read_512::*;
 
@@ -51,9 +51,10 @@ impl IOAdapter for FSAdapter {
         File::open(file)
     }
     fn create_new(&mut self, file: &Path) -> io::Result<File> {
-        fs::OpenOptions::new().write(true).create_new(true).open(
-            file,
-        )
+        fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(file)
     }
 }
 
@@ -72,7 +73,9 @@ pub struct TftpServerProto<IO: IOAdapter> {
 impl<IO: IOAdapter> TftpServerProto<IO> {
     /// Creates a new instance with the provided IOAdapter
     pub fn new(io: IO, cfg: IOPolicyCfg) -> Self {
-        TftpServerProto { io_proxy: IOPolicyProxy::new(io, cfg) }
+        TftpServerProto {
+            io_proxy: IOPolicyProxy::new(io, cfg),
+        }
     }
 
     /// Signals the receipt of a transfer-initiating packet (either RRQ of WRQ).
@@ -279,12 +282,10 @@ impl<IO: IOAdapter> IOAdapter for IOPolicyProxy<IO> {
     type R = IO::R;
     type W = IO::W;
     fn open_read(&self, file: &Path) -> io::Result<Self::R> {
-        if file.is_absolute() ||
-            file.components().any(|c| match c {
-                Component::RootDir | Component::ParentDir => true,
-                _ => false,
-            })
-        {
+        if file.is_absolute() || file.components().any(|c| match c {
+            Component::RootDir | Component::ParentDir => true,
+            _ => false,
+        }) {
             Err(io::Error::new(
                 io::ErrorKind::PermissionDenied,
                 "cannot read",
@@ -298,12 +299,10 @@ impl<IO: IOAdapter> IOAdapter for IOPolicyProxy<IO> {
     }
 
     fn create_new(&mut self, file: &Path) -> io::Result<Self::W> {
-        if self.policy.readonly || file.is_absolute() ||
-            file.components().any(|c| match c {
-                Component::RootDir | Component::ParentDir => true,
-                _ => false,
-            })
-        {
+        if self.policy.readonly || file.is_absolute() || file.components().any(|c| match c {
+            Component::RootDir | Component::ParentDir => true,
+            _ => false,
+        }) {
             Err(io::Error::new(
                 io::ErrorKind::PermissionDenied,
                 "cannot write",
