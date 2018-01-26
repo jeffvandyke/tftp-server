@@ -78,7 +78,7 @@ impl<IO: IOAdapter> TftpServerProto<IO> {
         }
     }
 
-    /// Signals the receipt of a transfer-initiating packet (either RRQ of WRQ).
+    /// Signals the receipt of a transfer-initiating packet (either RRQ or WRQ).
     /// If a `Transfer` is returned in the first tuple member, that must be used to
     /// handle all future packets from the same client via `Transfer::rx`
     /// If a 'Transfer' is not returned, then a transfer cannot be started from the
