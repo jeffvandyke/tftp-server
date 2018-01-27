@@ -117,7 +117,17 @@ pub enum TftpOption {
 }
 
 impl TftpOption {
-    #[cfg(test)]
+    fn write_to(&self, buf: &mut Write) -> io::Result<()> {
+        use packet::TftpOption::*;
+        match self {
+            &Blocksize(size) => {
+                buf.write_all(b"blksize\0")?;
+                write!(buf, "{}\0", size)?;
+            }
+        };
+        Ok(())
+    }
+
     fn try_from(name: &str, value: &str) -> Option<Self> {
         match name {
             "blksize" => {
@@ -210,9 +220,26 @@ fn read_string(bytes: &[u8]) -> Result<(String, &[u8])> {
 
 fn read_rrq_packet(bytes: &[u8]) -> Result<Packet> {
     let (filename, rest) = read_string(bytes)?;
-    let (mode, _) = read_string(rest)?;
+    let (mode, rest) = read_string(rest)?;
 
-    Ok(Packet::RRQ { filename, mode, options: vec![] })
+    let mut bytes = rest;
+    let mut options = vec![];
+    loop {
+        // errors ignored while parsing options
+        let (opt, rest) = match read_string(bytes) {
+            Ok(v) => v,
+            _ => break,
+        };
+        let (value, rest) = match read_string(rest) {
+            Ok(v) => v,
+            _ => break,
+        };
+        bytes = rest;
+        if let Some(opt) = TftpOption::try_from(&opt, &value) {
+            options.push(opt);
+        }
+    }
+    Ok(Packet::RRQ { filename, mode, options })
 }
 
 fn read_wrq_packet(bytes: &[u8]) -> Result<Packet> {
@@ -249,6 +276,10 @@ fn r_packet_bytes(packet: OpCode, filename: &str, mode: &str, options: &[TftpOpt
     buf.write_all(&[0])?;
     buf.write_all(mode.as_bytes())?;
     buf.write_all(&[0])?;
+
+    for opt in options {
+        opt.write_to(buf)?;
+    }
 
     Ok(())
 }
