@@ -90,7 +90,7 @@ impl<IO: IOAdapter> TftpServerProto<IO> {
         packet: Packet,
     ) -> (Option<Transfer<IO>>, Result<Packet, TftpError>) {
         let (filename, mode, is_write) = match packet {
-            Packet::RRQ { filename, mode } => (filename, mode, false),
+            Packet::RRQ { filename, mode, .. } => (filename, mode, false),
             Packet::WRQ { filename, mode } => (filename, mode, true),
             _ => return (None, Err(TftpError::NotIniatingPacket)),
         };

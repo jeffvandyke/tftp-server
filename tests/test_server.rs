@@ -182,6 +182,7 @@ impl ReadingTransfer {
         let init_packet = Packet::RRQ {
             filename: server_file.into(),
             mode: "octet".into(),
+            options: vec![],
         };
         xfer.socket
             .send_to(init_packet.to_bytes().unwrap().as_slice(), &server_addr)
@@ -258,6 +259,7 @@ fn rrq_file_not_found_test(server_addr: &SocketAddr) -> Result<()> {
     let init_packet = Packet::RRQ {
         filename: "./hello.txt".into(),
         mode: "octet".into(),
+        options: vec![],
     };
     socket.send_to(init_packet.into_bytes()?.as_slice(), server_addr)?;
 

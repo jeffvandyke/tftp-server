@@ -104,11 +104,16 @@ pub const MAX_PACKET_SIZE: usize = 1024;
 
 #[derive(PartialEq, Clone, Debug)]
 pub enum Packet {
-    RRQ { filename: String, mode: String },
+    RRQ { filename: String, mode: String, options: Vec<TftpOption> },
     WRQ { filename: String, mode: String },
     DATA { block_num: u16, data: Vec<u8> },
     ACK(u16),
     ERROR { code: ErrorCode, msg: String },
+}
+
+#[derive(PartialEq, Clone, Debug)]
+pub enum TftpOption {
+    Blocksize(u16),
 }
 
 impl Packet {
@@ -151,11 +156,12 @@ impl Packet {
             Packet::RRQ {
                 ref filename,
                 ref mode,
-            } => rw_packet_bytes(OpCode::RRQ, filename, mode, buf),
+                ref options,
+            } => r_packet_bytes(OpCode::RRQ, filename, mode, options, buf),
             Packet::WRQ {
                 ref filename,
                 ref mode,
-            } => rw_packet_bytes(OpCode::WRQ, filename, mode, buf),
+            } => w_packet_bytes(OpCode::WRQ, filename, mode, buf),
             Packet::DATA {
                 block_num,
                 ref data,
@@ -189,7 +195,7 @@ fn read_rrq_packet(bytes: &[u8]) -> Result<Packet> {
     let (filename, rest) = read_string(bytes)?;
     let (mode, _) = read_string(rest)?;
 
-    Ok(Packet::RRQ { filename, mode })
+    Ok(Packet::RRQ { filename, mode, options: vec![] })
 }
 
 fn read_wrq_packet(bytes: &[u8]) -> Result<Packet> {
@@ -220,7 +226,17 @@ fn read_error_packet(mut bytes: &[u8]) -> Result<Packet> {
     Ok(Packet::ERROR { code, msg })
 }
 
-fn rw_packet_bytes(packet: OpCode, filename: &str, mode: &str, buf: &mut Write) -> Result<()> {
+fn r_packet_bytes(packet: OpCode, filename: &str, mode: &str, options: &[TftpOption], buf: &mut Write) -> Result<()> {
+    buf.write_u16::<BigEndian>(packet as u16)?;
+    buf.write_all(filename.as_bytes())?;
+    buf.write_all(&[0])?;
+    buf.write_all(mode.as_bytes())?;
+    buf.write_all(&[0])?;
+
+    Ok(())
+}
+
+fn w_packet_bytes(packet: OpCode, filename: &str, mode: &str, buf: &mut Write) -> Result<()> {
     buf.write_u16::<BigEndian>(packet as u16)?;
     buf.write_all(filename.as_bytes())?;
     buf.write_all(&[0])?;
@@ -313,6 +329,15 @@ mod tests {
         Packet::RRQ {
             filename: "/a/b/c/hello.txt".to_string(),
             mode: "netascii".to_string(),
+            options: vec![],
+        }
+    );
+    packet_enc_dec_test!(
+        rrq_blocksize,
+        Packet::RRQ {
+            filename: "/a/b/c/hello.txt".to_string(),
+            mode: "netascii".to_string(),
+            options: vec![TftpOption::Blocksize(735)],
         }
     );
     packet_enc_dec_test!(
