@@ -240,7 +240,9 @@ fn read_string(bytes: &[u8]) -> Result<(String, &[u8])> {
 }
 
 fn read_rrq_packet(bytes: &[u8]) -> Result<Packet> {
-    let (filename, mode, options) = read_file_mode_opts(bytes)?;
+    let (filename, rest) = read_string(bytes)?;
+    let (mode, rest) = read_string(rest)?;
+    let options = read_options(rest)?;
     Ok(Packet::RRQ {
         filename,
         mode,
@@ -249,7 +251,9 @@ fn read_rrq_packet(bytes: &[u8]) -> Result<Packet> {
 }
 
 fn read_wrq_packet(bytes: &[u8]) -> Result<Packet> {
-    let (filename, mode, options) = read_file_mode_opts(bytes)?;
+    let (filename, rest) = read_string(bytes)?;
+    let (mode, rest) = read_string(rest)?;
+    let options = read_options(rest)?;
     Ok(Packet::WRQ {
         filename,
         mode,
@@ -257,12 +261,8 @@ fn read_wrq_packet(bytes: &[u8]) -> Result<Packet> {
     })
 }
 
-fn read_file_mode_opts(bytes: &[u8]) -> Result<(String, String, Vec<TftpOption>)> {
-    let (filename, rest) = read_string(bytes)?;
-    let (mode, rest) = read_string(rest)?;
-
+fn read_options(mut bytes: &[u8]) -> Result<Vec<TftpOption>> {
     // TODO: this may need a rework of read_string
-    let mut bytes = rest;
     let mut options = vec![];
     loop {
         // errors ignored while parsing options
@@ -280,7 +280,7 @@ fn read_file_mode_opts(bytes: &[u8]) -> Result<(String, String, Vec<TftpOption>)
         }
     }
 
-    Ok((filename, mode, options))
+    Ok(options)
 }
 
 fn read_data_packet(mut bytes: &[u8]) -> Result<Packet> {
@@ -304,23 +304,8 @@ fn read_error_packet(mut bytes: &[u8]) -> Result<Packet> {
     Ok(Packet::ERROR { code, msg })
 }
 
-fn read_oack_packet(mut bytes: &[u8]) -> Result<Packet> {
-    let mut options = vec![];
-    loop {
-        // errors ignored while parsing options
-        let (opt, rest) = match read_string(bytes) {
-            Ok(v) => v,
-            _ => break,
-        };
-        let (value, rest) = match read_string(rest) {
-            Ok(v) => v,
-            _ => break,
-        };
-        bytes = rest;
-        if let Some(opt) = TftpOption::try_from(&opt, &value) {
-            options.push(opt);
-        }
-    }
+fn read_oack_packet(bytes: &[u8]) -> Result<Packet> {
+    let options = read_options(bytes)?;
 
     Ok(Packet::OACK { options })
 }
