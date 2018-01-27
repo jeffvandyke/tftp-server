@@ -263,7 +263,7 @@ fn read_rrq_packet(bytes: &[u8]) -> Result<Packet> {
 
 fn read_wrq_packet(bytes: &[u8]) -> Result<Packet> {
     let (filename, rest) = read_string(bytes)?;
-    let (mode, _) = read_string(rest)?;
+    let (mode, rest) = read_string(rest)?;
 
     let mut bytes = rest;
     let mut options = vec![];
