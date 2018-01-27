@@ -145,7 +145,7 @@ impl TftpOption {
         match name {
             "blksize" => {
                 let val = value.parse::<u16>().ok()?;
-                if val >= 8 && val <= 65464 {
+                if val >= 8 && val <= 65_464 {
                     Some(TftpOption::Blocksize(val))
                 } else {
                     None
@@ -364,7 +364,7 @@ mod option {
         );
         assert_eq!(
             TftpOption::try_from("blksize", "65464"),
-            Some(TftpOption::Blocksize(65464))
+            Some(TftpOption::Blocksize(65_464))
         );
         assert_eq!(TftpOption::try_from("blksize", "65465"), None);
     }
