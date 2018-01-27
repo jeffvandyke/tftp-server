@@ -69,6 +69,7 @@ fn timeout_test(server_addr: &SocketAddr) -> Result<()> {
     let init_packet = Packet::WRQ {
         filename: "hello.txt".into(),
         mode: "octet".into(),
+        options: vec![],
     };
     socket.send_to(init_packet.into_bytes()?.as_slice(), server_addr)?;
 
@@ -105,6 +106,7 @@ impl WritingTransfer {
         let init_packet = Packet::WRQ {
             filename: server_file.into(),
             mode: "octet".into(),
+            options: vec![],
         };
         xfer.socket
             .send_to(init_packet.to_bytes().unwrap().as_slice(), &server_addr)
@@ -244,6 +246,7 @@ fn wrq_file_exists_test(server_addr: &SocketAddr) -> Result<()> {
     let init_packet = Packet::WRQ {
         filename: "./files/hello.txt".into(),
         mode: "octet".into(),
+        options: vec![],
     };
     socket.send_to(init_packet.into_bytes()?.as_slice(), server_addr)?;
 

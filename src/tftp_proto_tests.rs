@@ -88,6 +88,7 @@ fn wrq_netascii_gets_error() {
     let (xfer, res) = server.rx_initial(Packet::WRQ {
         filename: file,
         mode: "netascii".into(),
+        options: vec![],
     });
     assert_matches!(
         res,
@@ -355,6 +356,7 @@ fn rrq_small_file_wrq_already_running() {
         xfer.rx(Packet::WRQ {
             filename: file,
             mode: "octet".into(),
+            options: vec![],
         }),
         TftpResult::Err(TftpError::TransferAlreadyRunning)
     );
@@ -393,6 +395,7 @@ fn wrq_already_exists_error() {
     let (xfer, res) = server.rx_initial(Packet::WRQ {
         filename: file,
         mode: "octet".into(),
+        options: vec![],
     });
     assert_matches!(
         res,
@@ -431,6 +434,7 @@ fn wrq_mail_gets_error() {
     let (xfer, res) = server.rx_initial(Packet::WRQ {
         filename: file,
         mode: "mail".into(),
+        options: vec![],
     });
     assert_matches!(
         res,
@@ -448,6 +452,7 @@ fn wrq_small_file_ack_end() {
     let (xfer, res) = server.rx_initial(Packet::WRQ {
         filename: file,
         mode: "octet".into(),
+        options: vec![],
     });
     assert_eq!(res, Ok(Packet::ACK(0)));
     let mut xfer = xfer.unwrap();
@@ -468,6 +473,7 @@ fn wrq_1_block_file() {
     let (xfer, res) = server.rx_initial(Packet::WRQ {
         filename: file,
         mode: "octet".into(),
+        options: vec![],
     });
     assert_eq!(res, Ok(Packet::ACK(0)));
     let mut xfer = xfer.unwrap();
@@ -500,6 +506,7 @@ fn wrq_small_file_reply_with_ack_illegal() {
     let (xfer, res) = server.rx_initial(Packet::WRQ {
         filename: file,
         mode: "octet".to_owned(),
+        options: vec![],
     });
     assert_eq!(res, Ok(Packet::ACK(0)));
     let mut xfer = xfer.unwrap();
@@ -532,6 +539,7 @@ fn wrq_small_file_block_id_not_1_err() {
     let (xfer, res) = server.rx_initial(Packet::WRQ {
         filename: file,
         mode: "octet".to_owned(),
+        options: vec![],
     });
     assert_eq!(res, Ok(Packet::ACK(0)));
     let mut xfer = xfer.unwrap();
@@ -561,6 +569,7 @@ fn wrq_large_file_blocknum_wraparound() {
     let (xfer, res) = server.rx_initial(Packet::WRQ {
         filename: file,
         mode: "octet".to_owned(),
+        options: vec![],
     });
     assert_eq!(res, Ok(Packet::ACK(0)));
     let mut xfer = xfer.unwrap();

@@ -112,6 +112,7 @@ pub enum Packet {
     WRQ {
         filename: String,
         mode: String,
+        options: Vec<TftpOption>,
     },
     DATA {
         block_num: u16,
@@ -197,11 +198,12 @@ impl Packet {
                 ref filename,
                 ref mode,
                 ref options,
-            } => r_packet_bytes(OpCode::RRQ, filename, mode, options, buf),
+            } => rw_packet_bytes(OpCode::RRQ, filename, mode, options, buf),
             Packet::WRQ {
                 ref filename,
                 ref mode,
-            } => w_packet_bytes(OpCode::WRQ, filename, mode, buf),
+                ref options,
+            } => rw_packet_bytes(OpCode::WRQ, filename, mode, options, buf),
             Packet::DATA {
                 block_num,
                 ref data,
@@ -263,7 +265,28 @@ fn read_wrq_packet(bytes: &[u8]) -> Result<Packet> {
     let (filename, rest) = read_string(bytes)?;
     let (mode, _) = read_string(rest)?;
 
-    Ok(Packet::WRQ { filename, mode })
+    let mut bytes = rest;
+    let mut options = vec![];
+    loop {
+        // errors ignored while parsing options
+        let (opt, rest) = match read_string(bytes) {
+            Ok(v) => v,
+            _ => break,
+        };
+        let (value, rest) = match read_string(rest) {
+            Ok(v) => v,
+            _ => break,
+        };
+        bytes = rest;
+        if let Some(opt) = TftpOption::try_from(&opt, &value) {
+            options.push(opt);
+        }
+    }
+    Ok(Packet::WRQ {
+        filename,
+        mode,
+        options,
+    })
 }
 
 fn read_data_packet(mut bytes: &[u8]) -> Result<Packet> {
@@ -287,7 +310,7 @@ fn read_error_packet(mut bytes: &[u8]) -> Result<Packet> {
     Ok(Packet::ERROR { code, msg })
 }
 
-fn r_packet_bytes(
+fn rw_packet_bytes(
     packet: OpCode,
     filename: &str,
     mode: &str,
@@ -303,16 +326,6 @@ fn r_packet_bytes(
     for opt in options {
         opt.write_to(buf)?;
     }
-
-    Ok(())
-}
-
-fn w_packet_bytes(packet: OpCode, filename: &str, mode: &str, buf: &mut Write) -> Result<()> {
-    buf.write_u16::<BigEndian>(packet as u16)?;
-    buf.write_all(filename.as_bytes())?;
-    buf.write_all(&[0])?;
-    buf.write_all(mode.as_bytes())?;
-    buf.write_all(&[0])?;
 
     Ok(())
 }
@@ -445,6 +458,15 @@ mod tests {
         Packet::WRQ {
             filename: "./world.txt".to_string(),
             mode: "octet".to_string(),
+            options: vec![],
+        }
+    );
+    packet_enc_dec_test!(
+        wrq_blocksize,
+        Packet::WRQ {
+            filename: "./world.txt".to_string(),
+            mode: "octet".to_string(),
+            options: vec![TftpOption::Blocksize(846)],
         }
     );
     packet_enc_dec_test!(ack, Packet::ACK(1234));
