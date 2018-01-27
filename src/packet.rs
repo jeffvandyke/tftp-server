@@ -104,11 +104,24 @@ pub const MAX_PACKET_SIZE: usize = 1024;
 
 #[derive(PartialEq, Clone, Debug)]
 pub enum Packet {
-    RRQ { filename: String, mode: String, options: Vec<TftpOption> },
-    WRQ { filename: String, mode: String },
-    DATA { block_num: u16, data: Vec<u8> },
+    RRQ {
+        filename: String,
+        mode: String,
+        options: Vec<TftpOption>,
+    },
+    WRQ {
+        filename: String,
+        mode: String,
+    },
+    DATA {
+        block_num: u16,
+        data: Vec<u8>,
+    },
     ACK(u16),
-    ERROR { code: ErrorCode, msg: String },
+    ERROR {
+        code: ErrorCode,
+        msg: String,
+    },
 }
 
 #[derive(PartialEq, Clone, Debug)]
@@ -239,7 +252,11 @@ fn read_rrq_packet(bytes: &[u8]) -> Result<Packet> {
             options.push(opt);
         }
     }
-    Ok(Packet::RRQ { filename, mode, options })
+    Ok(Packet::RRQ {
+        filename,
+        mode,
+        options,
+    })
 }
 
 fn read_wrq_packet(bytes: &[u8]) -> Result<Packet> {
@@ -270,7 +287,13 @@ fn read_error_packet(mut bytes: &[u8]) -> Result<Packet> {
     Ok(Packet::ERROR { code, msg })
 }
 
-fn r_packet_bytes(packet: OpCode, filename: &str, mode: &str, options: &[TftpOption], buf: &mut Write) -> Result<()> {
+fn r_packet_bytes(
+    packet: OpCode,
+    filename: &str,
+    mode: &str,
+    options: &[TftpOption],
+    buf: &mut Write,
+) -> Result<()> {
     buf.write_u16::<BigEndian>(packet as u16)?;
     buf.write_all(filename.as_bytes())?;
     buf.write_all(&[0])?;
@@ -324,7 +347,10 @@ mod option {
 
     #[test]
     fn blocksize_parse() {
-        assert_eq!(TftpOption::try_from("blksize", "512"), Some(TftpOption::Blocksize(512)));
+        assert_eq!(
+            TftpOption::try_from("blksize", "512"),
+            Some(TftpOption::Blocksize(512))
+        );
         assert_eq!(TftpOption::try_from("blksize", "cat"), None);
         assert_eq!(TftpOption::try_from("blocksize", "512"), None);
     }
@@ -332,8 +358,14 @@ mod option {
     #[test]
     fn blocksize_bounds() {
         assert_eq!(TftpOption::try_from("blksize", "7"), None);
-        assert_eq!(TftpOption::try_from("blksize", "8"), Some(TftpOption::Blocksize(8)));
-        assert_eq!(TftpOption::try_from("blksize", "65464"), Some(TftpOption::Blocksize(65464)));
+        assert_eq!(
+            TftpOption::try_from("blksize", "8"),
+            Some(TftpOption::Blocksize(8))
+        );
+        assert_eq!(
+            TftpOption::try_from("blksize", "65464"),
+            Some(TftpOption::Blocksize(65464))
+        );
         assert_eq!(TftpOption::try_from("blksize", "65465"), None);
     }
 }
