@@ -889,7 +889,7 @@ impl Write for ExpectingWriter {
 }
 impl Drop for ExpectingWriter {
     fn drop(&mut self) {
-        if self.enforce_full_write {
+        if self.enforce_full_write && !::std::thread::panicking() {
             let (_, sup) = self.gen.size_hint();
             assert_eq!(
                 sup,
