@@ -174,26 +174,21 @@ impl<IO: IOAdapter> Transfer<IO> {
         if self.is_done() {
             return TftpResult::Done(None);
         }
-        let result = match packet {
-            Packet::ACK(ack_block) => {
-                match *self {
-                    Transfer::Tx(ref mut tx) => tx.handle_ack(ack_block),
-                    _ => {
-                        // wrong kind of packet, kill transfer
-                        TftpResult::Done(Some(ErrorCode::IllegalTFTP.into()))
-                    }
-                }
+        let result = match (packet, &mut *self) {
+            (Packet::ACK(ack_block), &mut Transfer::Tx(ref mut tx)) => tx.handle_ack(ack_block),
+            (
+                Packet::DATA {
+                    block_num,
+                    ref data,
+                },
+                &mut Transfer::Rx(ref mut rx),
+            ) => rx.handle_data(block_num, data),
+            (Packet::DATA { .. }, _) | (Packet::ACK(_), _) => {
+                // wrong kind of packet, kill transfer
+                TftpResult::Done(Some(ErrorCode::IllegalTFTP.into()))
             }
-            Packet::DATA { block_num, data } => {
-                match *self {
-                    Transfer::Rx(ref mut rx) => rx.handle_data(block_num, &data),
-                    _ => {
-                        // wrong kind of packet, kill transfer
-                        TftpResult::Done(Some(ErrorCode::IllegalTFTP.into()))
-                    }
-                }
-            }
-            Packet::ERROR { .. } => {
+
+            (Packet::ERROR { .. }, _) => {
                 // receiving an error kills the transfer
                 TftpResult::Done(None)
             }
