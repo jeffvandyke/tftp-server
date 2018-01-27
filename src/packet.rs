@@ -58,6 +58,7 @@ primitive_enum! (
         DATA = 3,
         ACK = 4,
         ERROR = 5,
+        OACK = 6,
     }
 );
 
@@ -123,6 +124,9 @@ pub enum Packet {
         code: ErrorCode,
         msg: String,
     },
+    OACK {
+        options: Vec<TftpOption>,
+    },
 }
 
 #[derive(PartialEq, Clone, Debug)]
@@ -167,6 +171,7 @@ impl Packet {
             OpCode::DATA => read_data_packet(bytes),
             OpCode::ACK => read_ack_packet(bytes),
             OpCode::ERROR => read_error_packet(bytes),
+            OpCode::OACK => read_oack_packet(bytes),
         }
     }
 
@@ -210,6 +215,7 @@ impl Packet {
             } => data_packet_bytes(block_num, data.as_slice(), buf),
             Packet::ACK(block_num) => ack_packet_bytes(block_num, buf),
             Packet::ERROR { code, ref msg } => error_packet_bytes(code, msg, buf),
+            Packet::OACK { ref options } => oack_packet_bytes(options, buf),
         }
     }
 }
@@ -298,6 +304,27 @@ fn read_error_packet(mut bytes: &[u8]) -> Result<Packet> {
     Ok(Packet::ERROR { code, msg })
 }
 
+fn read_oack_packet(mut bytes: &[u8]) -> Result<Packet> {
+    let mut options = vec![];
+    loop {
+        // errors ignored while parsing options
+        let (opt, rest) = match read_string(bytes) {
+            Ok(v) => v,
+            _ => break,
+        };
+        let (value, rest) = match read_string(rest) {
+            Ok(v) => v,
+            _ => break,
+        };
+        bytes = rest;
+        if let Some(opt) = TftpOption::try_from(&opt, &value) {
+            options.push(opt);
+        }
+    }
+
+    Ok(Packet::OACK { options })
+}
+
 fn rw_packet_bytes(
     packet: OpCode,
     filename: &str,
@@ -338,6 +365,16 @@ fn error_packet_bytes(code: ErrorCode, msg: &str, buf: &mut Write) -> Result<()>
     buf.write_u16::<BigEndian>(code as u16)?;
     buf.write_all(msg.as_bytes())?;
     buf.write_all(&[0])?;
+
+    Ok(())
+}
+
+fn oack_packet_bytes(options: &[TftpOption], buf: &mut Write) -> Result<()> {
+    buf.write_u16::<BigEndian>(OpCode::OACK as u16)?;
+
+    for opt in options {
+        opt.write_to(buf)?;
+    }
 
     Ok(())
 }
@@ -470,6 +507,12 @@ mod tests {
         Packet::ERROR {
             code: ErrorCode::NoUser,
             msg: "This is a message".to_string(),
+        }
+    );
+    packet_enc_dec_test!(
+        oack,
+        Packet::OACK {
+            options: vec![TftpOption::Blocksize(1234)],
         }
     );
 }
