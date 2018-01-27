@@ -133,8 +133,8 @@ pub enum TftpOption {
 impl TftpOption {
     fn write_to(&self, buf: &mut Write) -> io::Result<()> {
         use packet::TftpOption::*;
-        match self {
-            &Blocksize(size) => {
+        match *self {
+            Blocksize(size) => {
                 buf.write_all(b"blksize\0")?;
                 write!(buf, "{}\0", size)?;
             }
