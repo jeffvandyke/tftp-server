@@ -1,8 +1,7 @@
 use std::io::{self, Read, Write};
 use std::fs::{self, File};
 use std::path::{Component, Path, PathBuf};
-use packet::{ErrorCode, Packet};
-use read_512::*;
+use packet::{ErrorCode, Packet, TftpOption};
 
 #[derive(Debug, PartialEq)]
 pub enum TftpResult {
@@ -89,9 +88,17 @@ impl<IO: IOAdapter> TftpServerProto<IO> {
         &mut self,
         packet: Packet,
     ) -> (Option<Transfer<IO>>, Result<Packet, TftpError>) {
-        let (filename, mode, is_write) = match packet {
-            Packet::RRQ { filename, mode, .. } => (filename, mode, false),
-            Packet::WRQ { filename, mode, .. } => (filename, mode, true),
+        let (filename, mode, options, is_write) = match packet {
+            Packet::RRQ {
+                filename,
+                mode,
+                options,
+            } => (filename, mode, options, false),
+            Packet::WRQ {
+                filename,
+                mode,
+                options,
+            } => (filename, mode, options, true),
             _ => return (None, Err(TftpError::NotIniatingPacket)),
         };
         match mode.as_ref() {
@@ -114,7 +121,7 @@ impl<IO: IOAdapter> TftpServerProto<IO> {
                 _ => return (None, Ok(ErrorCode::FileNotFound.into())),
             };
 
-            Transfer::<IO>::new_read(fread)
+            Transfer::<IO>::new_read(fread, options)
         };
         (Some(xfer), Ok(packet))
     }
@@ -136,16 +143,29 @@ pub struct TransferTx<R: Read> {
     fread: R,
     expected_block_num: u16,
     sent_final: bool,
+    blocksize: u16,
 }
 
 impl<IO: IOAdapter> Transfer<IO> {
-    fn new_read(fread: IO::R) -> (Transfer<IO>, Packet) {
+    fn new_read(fread: IO::R, options: Vec<TftpOption>) -> (Transfer<IO>, Packet) {
+        let mut blocksize = 512;
+        for opt in &options {
+            match *opt {
+                TftpOption::Blocksize(size) => blocksize = size,
+            }
+        }
         let mut xfer = TransferTx {
             fread,
             expected_block_num: 0,
             sent_final: false,
+            blocksize,
         };
-        let packet = xfer.read_step();
+
+        let packet = if options.is_empty() {
+            xfer.read_step()
+        } else {
+            Packet::OACK { options }
+        };
         (Transfer::Tx(xfer), packet)
     }
 
@@ -224,8 +244,11 @@ impl<R: Read> TransferTx<R> {
 
     fn read_step(&mut self) -> Packet {
         let mut v = vec![];
-        self.fread.read_512(&mut v).unwrap();
-        self.sent_final = v.len() < 512;
+        (&mut self.fread)
+            .take(u64::from(self.blocksize))
+            .read_to_end(&mut v)
+            .unwrap();
+        self.sent_final = v.len() < self.blocksize as usize;
         self.expected_block_num = self.expected_block_num.wrapping_add(1);
         Packet::DATA {
             block_num: self.expected_block_num,

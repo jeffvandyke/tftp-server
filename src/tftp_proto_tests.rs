@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 use std::io::{self, Read, Write};
 use std::iter::Take;
 use std::path::Path;
-use packet::{ErrorCode, Packet};
+use packet::{ErrorCode, Packet, TftpOption};
 use tftp_proto::*;
 
 #[test]
@@ -592,6 +592,38 @@ fn wrq_large_file_blocknum_wraparound() {
         }),
         TftpResult::Done(Some(Packet::ACK(block_num)))
     );
+}
+
+#[test]
+fn rrq_blocksize() {
+    let (mut server, file, mut file_bytes) = rrq_fixture(1234 + 1233);
+    let (xfer, res) = server.rx_initial(Packet::RRQ {
+        filename: file,
+        mode: "octet".into(),
+        options: vec![TftpOption::Blocksize(1234)],
+    });
+    assert_eq!(
+        res,
+        Ok(Packet::OACK {
+            options: vec![TftpOption::Blocksize(1234)],
+        })
+    );
+    let mut xfer = xfer.unwrap();
+    assert_eq!(
+        xfer.rx(Packet::ACK(0)),
+        TftpResult::Reply(Packet::DATA {
+            block_num: 1,
+            data: file_bytes.gen(1234),
+        })
+    );
+    assert_eq!(
+        xfer.rx(Packet::ACK(1)),
+        TftpResult::Reply(Packet::DATA {
+            block_num: 2,
+            data: file_bytes.gen(1233),
+        })
+    );
+    assert_eq!(xfer.rx(Packet::ACK(2)), TftpResult::Done(None));
 }
 
 #[test]
