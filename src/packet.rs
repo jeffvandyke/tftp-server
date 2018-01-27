@@ -73,6 +73,7 @@ primitive_enum! (
         UnknownID = 5,
         FileExists = 6,
         NoUser = 7,
+        BadOption = 8,
     }
 );
 
@@ -88,6 +89,7 @@ impl ErrorCode {
             ErrorCode::UnknownID => "Unknown transfer ID.",
             ErrorCode::FileExists => "File already exists.",
             ErrorCode::NoUser => "No such user.",
+            ErrorCode::BadOption => "Bad option.",
         }).to_string()
     }
 }
