@@ -116,6 +116,23 @@ pub enum TftpOption {
     Blocksize(u16),
 }
 
+impl TftpOption {
+    #[cfg(test)]
+    fn try_from(name: &str, value: &str) -> Option<Self> {
+        match name {
+            "blksize" => {
+                let val = value.parse::<u16>().ok()?;
+                if val >= 8 && val <= 65464 {
+                    Some(TftpOption::Blocksize(val))
+                } else {
+                    None
+                }
+            }
+            _ => None,
+        }
+    }
+}
+
 impl Packet {
     /// Creates and returns a packet parsed from its byte representation.
     pub fn read(mut bytes: &[u8]) -> Result<Packet> {
@@ -268,6 +285,26 @@ fn error_packet_bytes(code: ErrorCode, msg: &str, buf: &mut Write) -> Result<()>
     buf.write_all(&[0])?;
 
     Ok(())
+}
+
+#[cfg(test)]
+mod option {
+    use super::*;
+
+    #[test]
+    fn blocksize_parse() {
+        assert_eq!(TftpOption::try_from("blksize", "512"), Some(TftpOption::Blocksize(512)));
+        assert_eq!(TftpOption::try_from("blksize", "cat"), None);
+        assert_eq!(TftpOption::try_from("blocksize", "512"), None);
+    }
+
+    #[test]
+    fn blocksize_bounds() {
+        assert_eq!(TftpOption::try_from("blksize", "7"), None);
+        assert_eq!(TftpOption::try_from("blksize", "8"), Some(TftpOption::Blocksize(8)));
+        assert_eq!(TftpOption::try_from("blksize", "65464"), Some(TftpOption::Blocksize(65464)));
+        assert_eq!(TftpOption::try_from("blksize", "65465"), None);
+    }
 }
 
 #[cfg(test)]
