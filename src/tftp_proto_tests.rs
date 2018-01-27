@@ -627,6 +627,37 @@ fn rrq_blocksize() {
 }
 
 #[test]
+fn wrq_blocksize() {
+    let (mut server, file, mut file_bytes) = wrq_fixture(1234 + 1233);
+    let (xfer, res) = server.rx_initial(Packet::WRQ {
+        filename: file,
+        mode: "octet".into(),
+        options: vec![TftpOption::Blocksize(1234)],
+    });
+    assert_eq!(
+        res,
+        Ok(Packet::OACK {
+            options: vec![TftpOption::Blocksize(1234)],
+        })
+    );
+    let mut xfer = xfer.unwrap();
+    assert_eq!(
+        xfer.rx(Packet::DATA {
+            block_num: 1,
+            data: file_bytes.gen(1234),
+        }),
+        TftpResult::Reply(Packet::ACK(1))
+    );
+    assert_eq!(
+        xfer.rx(Packet::DATA {
+            block_num: 2,
+            data: file_bytes.gen(1233),
+        }),
+        TftpResult::Done(Some(Packet::ACK(2)))
+    );
+}
+
+#[test]
 fn policy_readonly() {
     let mut iof = TestIoFactory::new();
     let amt = 100;

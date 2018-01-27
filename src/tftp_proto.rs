@@ -114,7 +114,7 @@ impl<IO: IOAdapter> TftpServerProto<IO> {
                 _ => return (None, Ok(ErrorCode::FileExists.into())),
             };
 
-            Transfer::<IO>::new_write(fwrite)
+            Transfer::<IO>::new_write(fwrite, options)
         } else {
             let fread = match self.io_proxy.open_read(file) {
                 Ok(f) => f,
@@ -137,6 +137,7 @@ pub enum Transfer<IO: IOAdapter> {
 pub struct TransferRx<W: Write> {
     fwrite: W,
     expected_block_num: u16,
+    blocksize: u16,
 }
 
 pub struct TransferTx<R: Read> {
@@ -169,12 +170,25 @@ impl<IO: IOAdapter> Transfer<IO> {
         (Transfer::Tx(xfer), packet)
     }
 
-    fn new_write(fwrite: IO::W) -> (Transfer<IO>, Packet) {
+    fn new_write(fwrite: IO::W, options: Vec<TftpOption>) -> (Transfer<IO>, Packet) {
+        let mut blocksize = 512;
+        for opt in &options {
+            match *opt {
+                TftpOption::Blocksize(size) => blocksize = size,
+            }
+        }
         let xfer = TransferRx {
             fwrite,
             expected_block_num: 1,
+            blocksize,
         };
-        (Transfer::Rx(xfer), Packet::ACK(0))
+
+        let packet = if options.is_empty() {
+            Packet::ACK(0)
+        } else {
+            Packet::OACK { options }
+        };
+        (Transfer::Rx(xfer), packet)
     }
 
     /// Checks to see if the transfer has completed
@@ -267,7 +281,7 @@ impl<W: Write> TransferRx<W> {
         } else {
             self.fwrite.write_all(data).unwrap();
             self.expected_block_num = block_num.wrapping_add(1);
-            if data.len() < 512 {
+            if data.len() < self.blocksize as usize {
                 TftpResult::Done(Some(Packet::ACK(block_num)))
             } else {
                 TftpResult::Reply(Packet::ACK(block_num))
