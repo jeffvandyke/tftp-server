@@ -255,6 +255,7 @@ fn read_file_mode_opts(bytes: &[u8]) -> Result<(String, String, Vec<TftpOption>)
     let (filename, rest) = read_string(bytes)?;
     let (mode, rest) = read_string(rest)?;
 
+    // TODO: this may need a rework of read_string
     let mut bytes = rest;
     let mut options = vec![];
     loop {
