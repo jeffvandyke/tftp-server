@@ -141,8 +141,7 @@ impl TftpOption {
         use packet::TftpOption::*;
         match *self {
             Blocksize(size) => {
-                buf.write_all(b"blksize\0")?;
-                write!(buf, "{}\0", size)?;
+                write!(buf, "blksize\0{}\0", size)?;
             }
         };
         Ok(())
@@ -320,10 +319,7 @@ fn rw_packet_bytes(
     buf: &mut Write,
 ) -> Result<()> {
     buf.write_u16::<BigEndian>(packet as u16)?;
-    buf.write_all(filename.as_bytes())?;
-    buf.write_all(&[0])?;
-    buf.write_all(mode.as_bytes())?;
-    buf.write_all(&[0])?;
+    write!(buf, "{}\0{}\0", filename, mode)?;
 
     for opt in options {
         opt.write_to(buf)?;
@@ -350,8 +346,7 @@ fn ack_packet_bytes(block_num: u16, buf: &mut Write) -> Result<()> {
 fn error_packet_bytes(code: ErrorCode, msg: &str, buf: &mut Write) -> Result<()> {
     buf.write_u16::<BigEndian>(OpCode::ERROR as u16)?;
     buf.write_u16::<BigEndian>(code as u16)?;
-    buf.write_all(msg.as_bytes())?;
-    buf.write_all(&[0])?;
+    write!(buf, "{}\0", msg)?;
 
     Ok(())
 }
