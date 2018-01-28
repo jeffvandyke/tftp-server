@@ -257,7 +257,7 @@ impl<R: Read> TransferTx<R> {
     }
 
     fn read_step(&mut self) -> Packet {
-        let mut v = vec![];
+        let mut v = Vec::with_capacity(self.blocksize as usize);
         (&mut self.fread)
             .take(u64::from(self.blocksize))
             .read_to_end(&mut v)
