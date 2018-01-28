@@ -10,7 +10,7 @@ use std::net::{IpAddr, SocketAddr, UdpSocket};
 use std::thread;
 use std::time::Duration;
 use std::borrow::BorrowMut;
-use tftp_server::packet::{ErrorCode, Packet, MAX_PACKET_SIZE};
+use tftp_server::packet::{ErrorCode, Packet, TftpOption, MAX_PACKET_SIZE};
 use tftp_server::server::{Result, ServerConfig, TftpServer};
 
 const TIMEOUT: u64 = 3;
@@ -69,6 +69,7 @@ fn timeout_test(server_addr: &SocketAddr) -> Result<()> {
     let init_packet = Packet::WRQ {
         filename: "hello.txt".into(),
         mode: "octet".into(),
+        options: vec![],
     };
     socket.send_to(init_packet.into_bytes()?.as_slice(), server_addr)?;
 
@@ -92,19 +93,33 @@ struct WritingTransfer {
     file: File,
     block_num: u16,
     remote: Option<SocketAddr>,
+    blocksize: u64,
 }
 
 impl WritingTransfer {
-    fn start(local_file: &str, server_addr: &SocketAddr, server_file: &str) -> Self {
+    fn start(
+        local_file: &str,
+        server_addr: &SocketAddr,
+        server_file: &str,
+        options: Vec<TftpOption>,
+    ) -> Self {
+        let mut blocksize: u64 = 512;
+        for opt in &options {
+            match *opt {
+                TftpOption::Blocksize(size) => blocksize = size as u64,
+            }
+        }
         let xfer = Self {
             socket: create_socket(Some(Duration::from_secs(TIMEOUT))).unwrap(),
             file: File::open(local_file).expect(&format!("cannot open {}", local_file)),
             block_num: 0,
             remote: None,
+            blocksize,
         };
         let init_packet = Packet::WRQ {
             filename: server_file.into(),
             mode: "octet".into(),
+            options,
         };
         xfer.socket
             .send_to(init_packet.to_bytes().unwrap().as_slice(), &server_addr)
@@ -123,12 +138,19 @@ impl WritingTransfer {
             self.remote = Some(src);
         }
         let received = Packet::read(&rx_buf[0..amt]).unwrap();
-        assert_eq!(received, Packet::ACK(self.block_num));
+        if let Packet::OACK { .. } = received {
+            assert_eq!(self.block_num, 0);
+        } else {
+            assert_eq!(received, Packet::ACK(self.block_num));
+        }
         self.block_num = self.block_num.wrapping_add(1);
 
         // Read and send data packet
-        let mut data = Vec::with_capacity(512);
-        let res = self.file.borrow_mut().take(512).read_to_end(&mut data);
+        let mut data = Vec::with_capacity(self.blocksize as usize);
+        let res = self.file
+            .borrow_mut()
+            .take(self.blocksize)
+            .read_to_end(&mut data);
         if res.expect("error reading from file") == 0 {
             return None;
         }
@@ -147,13 +169,13 @@ impl WritingTransfer {
     }
 }
 
-fn wrq_whole_file_test(server_addr: &SocketAddr) -> Result<()> {
+fn wrq_whole_file_test(server_addr: &SocketAddr, options: Vec<TftpOption>) -> Result<()> {
     // remore file if it was left over after a test that panicked
     let _ = fs::remove_file("./hello.txt");
 
     let mut scratch_buf = [0; MAX_PACKET_SIZE];
 
-    let mut tx = WritingTransfer::start("./files/hello.txt", server_addr, "hello.txt");
+    let mut tx = WritingTransfer::start("./files/hello.txt", server_addr, "hello.txt", options);
     while let Some(_) = tx.step(&mut scratch_buf) {}
 
     // Would cause server to have an error if not handled robustly
@@ -169,19 +191,33 @@ struct ReadingTransfer {
     file: File,
     block_num: u16,
     remote: Option<SocketAddr>,
+    blocksize: u64,
 }
 
 impl ReadingTransfer {
-    fn start(local_file: &str, server_addr: &SocketAddr, server_file: &str) -> Self {
+    fn start(
+        local_file: &str,
+        server_addr: &SocketAddr,
+        server_file: &str,
+        options: Vec<TftpOption>,
+    ) -> Self {
+        let mut blocksize: u64 = 512;
+        for opt in &options {
+            match *opt {
+                TftpOption::Blocksize(size) => blocksize = size as u64,
+            }
+        }
         let xfer = Self {
             socket: create_socket(Some(Duration::from_secs(TIMEOUT))).unwrap(),
             file: File::create(local_file).expect(&format!("cannot create {}", local_file)),
             block_num: 1,
             remote: None,
+            blocksize,
         };
         let init_packet = Packet::RRQ {
             filename: server_file.into(),
             mode: "octet".into(),
+            options,
         };
         xfer.socket
             .send_to(init_packet.to_bytes().unwrap().as_slice(), &server_addr)
@@ -201,33 +237,43 @@ impl ReadingTransfer {
         }
 
         let received = Packet::read(&rx_buf[0..amt]).unwrap();
-        if let Packet::DATA { block_num, data } = received {
-            assert_eq!(self.block_num, block_num);
-            self.file
-                .write_all(&data)
-                .expect("cannot write to local file");
-
-            let ack_packet = Packet::ACK(self.block_num);
-            self.socket
-                .send_to(ack_packet.to_bytes().unwrap().as_slice(), &src)
-                .expect(&format!("cannot send packet {:?} to {:?}", ack_packet, src));
-
-            self.block_num = self.block_num.wrapping_add(1);
-
-            if data.len() < 512 {
-                return None;
+        match received {
+            Packet::OACK { .. } => {
+                assert_eq!(self.block_num, 1);
+                let ack_packet = Packet::ACK(0);
+                self.socket
+                    .send_to(ack_packet.to_bytes().unwrap().as_slice(), &src)
+                    .expect(&format!("cannot send packet {:?} to {:?}", ack_packet, src));
             }
-        } else {
-            panic!("Reply packet is not a data packet");
+            Packet::DATA { block_num, data } => {
+                assert_eq!(self.block_num, block_num);
+                self.file
+                    .write_all(&data)
+                    .expect("cannot write to local file");
+
+                let ack_packet = Packet::ACK(self.block_num);
+                self.socket
+                    .send_to(ack_packet.to_bytes().unwrap().as_slice(), &src)
+                    .expect(&format!("cannot send packet {:?} to {:?}", ack_packet, src));
+
+                self.block_num = self.block_num.wrapping_add(1);
+
+                if data.len() < self.blocksize as usize {
+                    return None;
+                }
+            }
+            _ => {
+                panic!("Reply packet is not a data packet");
+            }
         }
         Some(())
     }
 }
 
-fn rrq_whole_file_test(server_addr: &SocketAddr) -> Result<()> {
+fn rrq_whole_file_test(server_addr: &SocketAddr, options: Vec<TftpOption>) -> Result<()> {
     let mut scratch_buf = [0; MAX_PACKET_SIZE];
 
-    let mut rx = ReadingTransfer::start("./hello.txt", server_addr, "./files/hello.txt");
+    let mut rx = ReadingTransfer::start("./hello.txt", server_addr, "./files/hello.txt", options);
     while let Some(_) = rx.step(&mut scratch_buf) {}
 
     // Would cause server to have an error if not handled robustly
@@ -243,6 +289,7 @@ fn wrq_file_exists_test(server_addr: &SocketAddr) -> Result<()> {
     let init_packet = Packet::WRQ {
         filename: "./files/hello.txt".into(),
         mode: "octet".into(),
+        options: vec![],
     };
     socket.send_to(init_packet.into_bytes()?.as_slice(), server_addr)?;
 
@@ -258,6 +305,7 @@ fn rrq_file_not_found_test(server_addr: &SocketAddr) -> Result<()> {
     let init_packet = Packet::RRQ {
         filename: "./hello.txt".into(),
         mode: "octet".into(),
+        options: vec![],
     };
     socket.send_to(init_packet.into_bytes()?.as_slice(), server_addr)?;
 
@@ -271,8 +319,10 @@ fn rrq_file_not_found_test(server_addr: &SocketAddr) -> Result<()> {
 fn interleaved_read_read_same_file(server_addr: &SocketAddr) {
     let mut scratch_buf = [0; MAX_PACKET_SIZE];
 
-    let mut read_a = ReadingTransfer::start("./read_a.txt", server_addr, "./files/hello.txt");
-    let mut read_b = ReadingTransfer::start("./read_b.txt", server_addr, "./files/hello.txt");
+    let mut read_a =
+        ReadingTransfer::start("./read_a.txt", server_addr, "./files/hello.txt", vec![]);
+    let mut read_b =
+        ReadingTransfer::start("./read_b.txt", server_addr, "./files/hello.txt", vec![]);
     loop {
         let res_a = read_a.step(&mut scratch_buf);
         let res_b = read_b.step(&mut scratch_buf);
@@ -291,13 +341,16 @@ fn interleaved_read_read_same_file(server_addr: &SocketAddr) {
 fn main() {
     env_logger::init().unwrap();
     let addrs = start_server().unwrap();
-    for addr in &addrs {
-        wrq_whole_file_test(addr).unwrap();
-        rrq_whole_file_test(addr).unwrap();
-    }
     let server_addr = addrs[0];
+    for addr in &addrs {
+        wrq_whole_file_test(addr, vec![]).unwrap();
+        rrq_whole_file_test(addr, vec![]).unwrap();
+    }
+
     timeout_test(&server_addr).unwrap();
     wrq_file_exists_test(&server_addr).unwrap();
     rrq_file_not_found_test(&server_addr).unwrap();
     interleaved_read_read_same_file(&server_addr);
+    wrq_whole_file_test(&server_addr, vec![TftpOption::Blocksize(2050)]).unwrap();
+    rrq_whole_file_test(&server_addr, vec![TftpOption::Blocksize(2050)]).unwrap();
 }

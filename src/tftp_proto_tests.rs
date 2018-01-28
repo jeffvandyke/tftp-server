@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 use std::io::{self, Read, Write};
 use std::iter::Take;
 use std::path::Path;
-use packet::{ErrorCode, Packet};
+use packet::{ErrorCode, Packet, TftpOption};
 use tftp_proto::*;
 
 #[test]
@@ -34,6 +34,7 @@ fn rrq_no_file_gets_error() {
     let (xfer, res) = server.rx_initial(Packet::RRQ {
         filename: file,
         mode: "octet".into(),
+        options: vec![],
     });
     assert_matches!(
         res,
@@ -51,6 +52,7 @@ fn rrq_mail_gets_error() {
     let (xfer, res) = server.rx_initial(Packet::RRQ {
         filename: file,
         mode: "mail".into(),
+        options: vec![],
     });
     assert_matches!(
         res,
@@ -68,6 +70,7 @@ fn rrq_netascii_gets_error() {
     let (xfer, res) = server.rx_initial(Packet::RRQ {
         filename: file,
         mode: "netascii".into(),
+        options: vec![],
     });
     assert_matches!(
         res,
@@ -85,6 +88,7 @@ fn wrq_netascii_gets_error() {
     let (xfer, res) = server.rx_initial(Packet::WRQ {
         filename: file,
         mode: "netascii".into(),
+        options: vec![],
     });
     assert_matches!(
         res,
@@ -112,6 +116,7 @@ fn rrq_small_file_ack_end() {
     let (xfer, res) = server.rx_initial(Packet::RRQ {
         filename: file,
         mode: "octet".into(),
+        options: vec![],
     });
     assert_eq!(
         res,
@@ -133,6 +138,7 @@ fn rrq_1_block_file() {
     let (xfer, res) = server.rx_initial(Packet::RRQ {
         filename: file,
         mode: "octet".into(),
+        options: vec![],
     });
     assert_eq!(
         res,
@@ -158,6 +164,7 @@ fn rrq_small_file_ack_wrong_block() {
     let (xfer, res) = server.rx_initial(Packet::RRQ {
         filename: file,
         mode: "octet".into(),
+        options: vec![],
     });
     assert_eq!(
         res,
@@ -183,6 +190,7 @@ fn rrq_small_file_reply_with_data_illegal() {
     let (xfer, res) = server.rx_initial(Packet::RRQ {
         filename: file,
         mode: "octet".into(),
+        options: vec![],
     });
     assert_eq!(
         res,
@@ -211,6 +219,7 @@ fn double_rrq() {
     let (xfer, res) = server.rx_initial(Packet::RRQ {
         filename: file.clone(),
         mode: "octet".into(),
+        options: vec![],
     });
     assert_eq!(
         res,
@@ -224,6 +233,7 @@ fn double_rrq() {
         xfer.rx(Packet::RRQ {
             filename: file,
             mode: "octet".into(),
+            options: vec![],
         }),
         TftpResult::Err(TftpError::TransferAlreadyRunning)
     );
@@ -235,6 +245,7 @@ fn rrq_2_blocks_ok() {
     let (xfer, res) = server.rx_initial(Packet::RRQ {
         filename: file.clone(),
         mode: "octet".into(),
+        options: vec![],
     });
     assert_eq!(
         res,
@@ -260,6 +271,7 @@ fn rrq_2_blocks_second_lost_ack_repeat_ok() {
     let (xfer, res) = server.rx_initial(Packet::RRQ {
         filename: file.clone(),
         mode: "octet".into(),
+        options: vec![],
     });
     assert_eq!(
         res,
@@ -288,6 +300,7 @@ fn rrq_large_file_blocknum_wraparound() {
     let (xfer, res) = server.rx_initial(Packet::RRQ {
         filename: file,
         mode: "octet".into(),
+        options: vec![],
     });
     assert_eq!(
         res,
@@ -329,6 +342,7 @@ fn rrq_small_file_wrq_already_running() {
     let (xfer, res) = server.rx_initial(Packet::RRQ {
         filename: file.clone(),
         mode: "octet".into(),
+        options: vec![],
     });
     assert_eq!(
         res,
@@ -342,6 +356,7 @@ fn rrq_small_file_wrq_already_running() {
         xfer.rx(Packet::WRQ {
             filename: file,
             mode: "octet".into(),
+            options: vec![],
         }),
         TftpResult::Err(TftpError::TransferAlreadyRunning)
     );
@@ -353,6 +368,7 @@ fn rrq_small_file_err_kills_transfer() {
     let (xfer, res) = server.rx_initial(Packet::RRQ {
         filename: file.clone(),
         mode: "octet".into(),
+        options: vec![],
     });
     assert_eq!(
         res,
@@ -379,6 +395,7 @@ fn wrq_already_exists_error() {
     let (xfer, res) = server.rx_initial(Packet::WRQ {
         filename: file,
         mode: "octet".into(),
+        options: vec![],
     });
     assert_matches!(
         res,
@@ -417,6 +434,7 @@ fn wrq_mail_gets_error() {
     let (xfer, res) = server.rx_initial(Packet::WRQ {
         filename: file,
         mode: "mail".into(),
+        options: vec![],
     });
     assert_matches!(
         res,
@@ -434,6 +452,7 @@ fn wrq_small_file_ack_end() {
     let (xfer, res) = server.rx_initial(Packet::WRQ {
         filename: file,
         mode: "octet".into(),
+        options: vec![],
     });
     assert_eq!(res, Ok(Packet::ACK(0)));
     let mut xfer = xfer.unwrap();
@@ -454,6 +473,7 @@ fn wrq_1_block_file() {
     let (xfer, res) = server.rx_initial(Packet::WRQ {
         filename: file,
         mode: "octet".into(),
+        options: vec![],
     });
     assert_eq!(res, Ok(Packet::ACK(0)));
     let mut xfer = xfer.unwrap();
@@ -486,6 +506,7 @@ fn wrq_small_file_reply_with_ack_illegal() {
     let (xfer, res) = server.rx_initial(Packet::WRQ {
         filename: file,
         mode: "octet".to_owned(),
+        options: vec![],
     });
     assert_eq!(res, Ok(Packet::ACK(0)));
     let mut xfer = xfer.unwrap();
@@ -518,6 +539,7 @@ fn wrq_small_file_block_id_not_1_err() {
     let (xfer, res) = server.rx_initial(Packet::WRQ {
         filename: file,
         mode: "octet".to_owned(),
+        options: vec![],
     });
     assert_eq!(res, Ok(Packet::ACK(0)));
     let mut xfer = xfer.unwrap();
@@ -547,6 +569,7 @@ fn wrq_large_file_blocknum_wraparound() {
     let (xfer, res) = server.rx_initial(Packet::WRQ {
         filename: file,
         mode: "octet".to_owned(),
+        options: vec![],
     });
     assert_eq!(res, Ok(Packet::ACK(0)));
     let mut xfer = xfer.unwrap();
@@ -568,6 +591,69 @@ fn wrq_large_file_blocknum_wraparound() {
             data: file_bytes.gen(85),
         }),
         TftpResult::Done(Some(Packet::ACK(block_num)))
+    );
+}
+
+#[test]
+fn rrq_blocksize() {
+    let (mut server, file, mut file_bytes) = rrq_fixture(1234 + 1233);
+    let (xfer, res) = server.rx_initial(Packet::RRQ {
+        filename: file,
+        mode: "octet".into(),
+        options: vec![TftpOption::Blocksize(1234)],
+    });
+    assert_eq!(
+        res,
+        Ok(Packet::OACK {
+            options: vec![TftpOption::Blocksize(1234)],
+        })
+    );
+    let mut xfer = xfer.unwrap();
+    assert_eq!(
+        xfer.rx(Packet::ACK(0)),
+        TftpResult::Reply(Packet::DATA {
+            block_num: 1,
+            data: file_bytes.gen(1234),
+        })
+    );
+    assert_eq!(
+        xfer.rx(Packet::ACK(1)),
+        TftpResult::Reply(Packet::DATA {
+            block_num: 2,
+            data: file_bytes.gen(1233),
+        })
+    );
+    assert_eq!(xfer.rx(Packet::ACK(2)), TftpResult::Done(None));
+}
+
+#[test]
+fn wrq_blocksize() {
+    let (mut server, file, mut file_bytes) = wrq_fixture(1234 + 1233);
+    let (xfer, res) = server.rx_initial(Packet::WRQ {
+        filename: file,
+        mode: "octet".into(),
+        options: vec![TftpOption::Blocksize(1234)],
+    });
+    assert_eq!(
+        res,
+        Ok(Packet::OACK {
+            options: vec![TftpOption::Blocksize(1234)],
+        })
+    );
+    let mut xfer = xfer.unwrap();
+    assert_eq!(
+        xfer.rx(Packet::DATA {
+            block_num: 1,
+            data: file_bytes.gen(1234),
+        }),
+        TftpResult::Reply(Packet::ACK(1))
+    );
+    assert_eq!(
+        xfer.rx(Packet::DATA {
+            block_num: 2,
+            data: file_bytes.gen(1233),
+        }),
+        TftpResult::Done(Some(Packet::ACK(2)))
     );
 }
 
@@ -834,7 +920,7 @@ impl Write for ExpectingWriter {
 }
 impl Drop for ExpectingWriter {
     fn drop(&mut self) {
-        if self.enforce_full_write {
+        if self.enforce_full_write && !::std::thread::panicking() {
             let (_, sup) = self.gen.size_hint();
             assert_eq!(
                 sup,

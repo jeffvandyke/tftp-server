@@ -1,7 +1,6 @@
 use std::{io, result, str};
 use std::io::Write;
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
-use read_512::Read512;
 
 #[derive(Debug)]
 pub enum PacketErr {
@@ -58,6 +57,7 @@ primitive_enum! (
         DATA = 3,
         ACK = 4,
         ERROR = 5,
+        OACK = 6,
     }
 );
 
@@ -72,6 +72,7 @@ primitive_enum! (
         UnknownID = 5,
         FileExists = 6,
         NoUser = 7,
+        BadOption = 8,
     }
 );
 
@@ -87,6 +88,7 @@ impl ErrorCode {
             ErrorCode::UnknownID => "Unknown transfer ID.",
             ErrorCode::FileExists => "File already exists.",
             ErrorCode::NoUser => "No such user.",
+            ErrorCode::BadOption => "Bad option.",
         }).to_string()
     }
 }
@@ -100,15 +102,65 @@ impl From<ErrorCode> for Packet {
     }
 }
 
-pub const MAX_PACKET_SIZE: usize = 1024;
+pub const MAX_BLOCKSIZE: u16 = 65_464;
+pub const MAX_PACKET_SIZE: usize = MAX_BLOCKSIZE as usize + 2/*opcode size*/;
 
 #[derive(PartialEq, Clone, Debug)]
 pub enum Packet {
-    RRQ { filename: String, mode: String },
-    WRQ { filename: String, mode: String },
-    DATA { block_num: u16, data: Vec<u8> },
+    RRQ {
+        filename: String,
+        mode: String,
+        options: Vec<TftpOption>,
+    },
+    WRQ {
+        filename: String,
+        mode: String,
+        options: Vec<TftpOption>,
+    },
+    DATA {
+        block_num: u16,
+        data: Vec<u8>,
+    },
     ACK(u16),
-    ERROR { code: ErrorCode, msg: String },
+    ERROR {
+        code: ErrorCode,
+        msg: String,
+    },
+    OACK {
+        options: Vec<TftpOption>,
+    },
+}
+
+#[derive(PartialEq, Clone, Debug)]
+pub enum TftpOption {
+    Blocksize(u16),
+}
+
+impl TftpOption {
+    fn write_to(&self, buf: &mut Write) -> io::Result<()> {
+        use packet::TftpOption::*;
+        match *self {
+            Blocksize(size) => {
+                buf.write_all(b"blksize\0")?;
+                write!(buf, "{}\0", size)?;
+            }
+        };
+        Ok(())
+    }
+
+    fn try_from(name: &str, value: &str) -> Option<Self> {
+        match name {
+            "blksize" => {
+                let val = value.parse::<u16>().ok()?;
+                if val >= 8 && val <= MAX_BLOCKSIZE {
+                    Some(TftpOption::Blocksize(val))
+                } else {
+                    None
+                }
+            }
+            _ => None,
+        }
+    }
 }
 
 impl Packet {
@@ -121,6 +173,7 @@ impl Packet {
             OpCode::DATA => read_data_packet(bytes),
             OpCode::ACK => read_ack_packet(bytes),
             OpCode::ERROR => read_error_packet(bytes),
+            OpCode::OACK => read_oack_packet(bytes),
         }
     }
 
@@ -151,17 +204,20 @@ impl Packet {
             Packet::RRQ {
                 ref filename,
                 ref mode,
-            } => rw_packet_bytes(OpCode::RRQ, filename, mode, buf),
+                ref options,
+            } => rw_packet_bytes(OpCode::RRQ, filename, mode, options, buf),
             Packet::WRQ {
                 ref filename,
                 ref mode,
-            } => rw_packet_bytes(OpCode::WRQ, filename, mode, buf),
+                ref options,
+            } => rw_packet_bytes(OpCode::WRQ, filename, mode, options, buf),
             Packet::DATA {
                 block_num,
                 ref data,
             } => data_packet_bytes(block_num, data.as_slice(), buf),
             Packet::ACK(block_num) => ack_packet_bytes(block_num, buf),
             Packet::ERROR { code, ref msg } => error_packet_bytes(code, msg, buf),
+            Packet::OACK { ref options } => oack_packet_bytes(options, buf),
         }
     }
 }
@@ -187,23 +243,53 @@ fn read_string(bytes: &[u8]) -> Result<(String, &[u8])> {
 
 fn read_rrq_packet(bytes: &[u8]) -> Result<Packet> {
     let (filename, rest) = read_string(bytes)?;
-    let (mode, _) = read_string(rest)?;
-
-    Ok(Packet::RRQ { filename, mode })
+    let (mode, rest) = read_string(rest)?;
+    let options = read_options(rest)?;
+    Ok(Packet::RRQ {
+        filename,
+        mode,
+        options,
+    })
 }
 
 fn read_wrq_packet(bytes: &[u8]) -> Result<Packet> {
     let (filename, rest) = read_string(bytes)?;
-    let (mode, _) = read_string(rest)?;
+    let (mode, rest) = read_string(rest)?;
+    let options = read_options(rest)?;
+    Ok(Packet::WRQ {
+        filename,
+        mode,
+        options,
+    })
+}
 
-    Ok(Packet::WRQ { filename, mode })
+fn read_options(mut bytes: &[u8]) -> Result<Vec<TftpOption>> {
+    // TODO: this may need a rework of read_string
+    let mut options = vec![];
+    loop {
+        // errors ignored while parsing options
+        let (opt, rest) = match read_string(bytes) {
+            Ok(v) => v,
+            _ => break,
+        };
+        let (value, rest) = match read_string(rest) {
+            Ok(v) => v,
+            _ => break,
+        };
+        bytes = rest;
+        if let Some(opt) = TftpOption::try_from(&opt, &value) {
+            options.push(opt);
+        }
+    }
+
+    Ok(options)
 }
 
 fn read_data_packet(mut bytes: &[u8]) -> Result<Packet> {
     let block_num = bytes.read_u16::<BigEndian>()?;
     let mut data = Vec::with_capacity(512);
-    // TODO: test with longer packets
-    bytes.read_512(&mut data)?;
+    use std::io::Read;
+    bytes.read_to_end(&mut data)?;
 
     Ok(Packet::DATA { block_num, data })
 }
@@ -220,12 +306,28 @@ fn read_error_packet(mut bytes: &[u8]) -> Result<Packet> {
     Ok(Packet::ERROR { code, msg })
 }
 
-fn rw_packet_bytes(packet: OpCode, filename: &str, mode: &str, buf: &mut Write) -> Result<()> {
+fn read_oack_packet(bytes: &[u8]) -> Result<Packet> {
+    let options = read_options(bytes)?;
+
+    Ok(Packet::OACK { options })
+}
+
+fn rw_packet_bytes(
+    packet: OpCode,
+    filename: &str,
+    mode: &str,
+    options: &[TftpOption],
+    buf: &mut Write,
+) -> Result<()> {
     buf.write_u16::<BigEndian>(packet as u16)?;
     buf.write_all(filename.as_bytes())?;
     buf.write_all(&[0])?;
     buf.write_all(mode.as_bytes())?;
     buf.write_all(&[0])?;
+
+    for opt in options {
+        opt.write_to(buf)?;
+    }
 
     Ok(())
 }
@@ -252,6 +354,46 @@ fn error_packet_bytes(code: ErrorCode, msg: &str, buf: &mut Write) -> Result<()>
     buf.write_all(&[0])?;
 
     Ok(())
+}
+
+fn oack_packet_bytes(options: &[TftpOption], buf: &mut Write) -> Result<()> {
+    buf.write_u16::<BigEndian>(OpCode::OACK as u16)?;
+
+    for opt in options {
+        opt.write_to(buf)?;
+    }
+
+    Ok(())
+}
+
+#[cfg(test)]
+mod option {
+    use super::*;
+
+    #[test]
+    fn blocksize_parse() {
+        assert_eq!(
+            TftpOption::try_from("blksize", "512"),
+            Some(TftpOption::Blocksize(512))
+        );
+        assert_eq!(TftpOption::try_from("blksize", "cat"), None);
+        assert_eq!(TftpOption::try_from("blocksize", "512"), None);
+    }
+
+    #[test]
+    fn blocksize_bounds() {
+        assert_eq!(TftpOption::try_from("blksize", "7"), None);
+        assert_eq!(
+            TftpOption::try_from("blksize", "8"),
+            Some(TftpOption::Blocksize(8))
+        );
+        assert_eq!(MAX_BLOCKSIZE, 65_464);
+        assert_eq!(
+            TftpOption::try_from("blksize", "65464"),
+            Some(TftpOption::Blocksize(65_464))
+        );
+        assert_eq!(TftpOption::try_from("blksize", "65465"), None);
+    }
 }
 
 #[cfg(test)]
@@ -313,6 +455,15 @@ mod tests {
         Packet::RRQ {
             filename: "/a/b/c/hello.txt".to_string(),
             mode: "netascii".to_string(),
+            options: vec![],
+        }
+    );
+    packet_enc_dec_test!(
+        rrq_blocksize,
+        Packet::RRQ {
+            filename: "/a/b/c/hello.txt".to_string(),
+            mode: "netascii".to_string(),
+            options: vec![TftpOption::Blocksize(735)],
         }
     );
     packet_enc_dec_test!(
@@ -320,6 +471,15 @@ mod tests {
         Packet::WRQ {
             filename: "./world.txt".to_string(),
             mode: "octet".to_string(),
+            options: vec![],
+        }
+    );
+    packet_enc_dec_test!(
+        wrq_blocksize,
+        Packet::WRQ {
+            filename: "./world.txt".to_string(),
+            mode: "octet".to_string(),
+            options: vec![TftpOption::Blocksize(846)],
         }
     );
     packet_enc_dec_test!(ack, Packet::ACK(1234));
@@ -335,6 +495,12 @@ mod tests {
         Packet::ERROR {
             code: ErrorCode::NoUser,
             msg: "This is a message".to_string(),
+        }
+    );
+    packet_enc_dec_test!(
+        oack,
+        Packet::OACK {
+            options: vec![TftpOption::Blocksize(1234)],
         }
     );
 }
