@@ -46,6 +46,7 @@ Available features:
 * `-r` will make the server treat the served directory as read-only (it will reject all write requests)
 * `-d` or `--directory` specifies the direcotry to serve from (the given path will be prepended to all requested paths)
 * `-t` or `--timeout` specifies the timeout (in seconds) for idle connections
+* supports negotiatiation of the blocksize option
 * see TODO section below
 
 
@@ -79,3 +80,4 @@ TODOs
 * [x] multiple address support
 * [ ] CLI switches for logging
 * [ ] running control (ability to stop server hard or soft)
+* [ ] limit accepted blocksize to stack MSS (smaller on ipv4)
