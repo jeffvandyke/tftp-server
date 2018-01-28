@@ -10,7 +10,7 @@ use std::net::{IpAddr, SocketAddr, UdpSocket};
 use std::thread;
 use std::time::Duration;
 use std::borrow::BorrowMut;
-use tftp_server::packet::{ErrorCode, Packet, MAX_PACKET_SIZE};
+use tftp_server::packet::{ErrorCode, Packet, TftpOption, MAX_PACKET_SIZE};
 use tftp_server::server::{Result, ServerConfig, TftpServer};
 
 const TIMEOUT: u64 = 3;
@@ -93,20 +93,33 @@ struct WritingTransfer {
     file: File,
     block_num: u16,
     remote: Option<SocketAddr>,
+    blocksize: u64,
 }
 
 impl WritingTransfer {
-    fn start(local_file: &str, server_addr: &SocketAddr, server_file: &str) -> Self {
+    fn start(
+        local_file: &str,
+        server_addr: &SocketAddr,
+        server_file: &str,
+        options: Vec<TftpOption>,
+    ) -> Self {
+        let mut blocksize: u64 = 512;
+        for opt in &options {
+            match *opt {
+                TftpOption::Blocksize(size) => blocksize = size as u64,
+            }
+        }
         let xfer = Self {
             socket: create_socket(Some(Duration::from_secs(TIMEOUT))).unwrap(),
             file: File::open(local_file).expect(&format!("cannot open {}", local_file)),
             block_num: 0,
             remote: None,
+            blocksize,
         };
         let init_packet = Packet::WRQ {
             filename: server_file.into(),
             mode: "octet".into(),
-            options: vec![],
+            options,
         };
         xfer.socket
             .send_to(init_packet.to_bytes().unwrap().as_slice(), &server_addr)
@@ -125,12 +138,19 @@ impl WritingTransfer {
             self.remote = Some(src);
         }
         let received = Packet::read(&rx_buf[0..amt]).unwrap();
-        assert_eq!(received, Packet::ACK(self.block_num));
+        if let Packet::OACK { .. } = received {
+            assert_eq!(self.block_num, 0);
+        } else {
+            assert_eq!(received, Packet::ACK(self.block_num));
+        }
         self.block_num = self.block_num.wrapping_add(1);
 
         // Read and send data packet
-        let mut data = Vec::with_capacity(512);
-        let res = self.file.borrow_mut().take(512).read_to_end(&mut data);
+        let mut data = Vec::with_capacity(self.blocksize as usize);
+        let res = self.file
+            .borrow_mut()
+            .take(self.blocksize)
+            .read_to_end(&mut data);
         if res.expect("error reading from file") == 0 {
             return None;
         }
@@ -149,13 +169,13 @@ impl WritingTransfer {
     }
 }
 
-fn wrq_whole_file_test(server_addr: &SocketAddr) -> Result<()> {
+fn wrq_whole_file_test(server_addr: &SocketAddr, options: Vec<TftpOption>) -> Result<()> {
     // remore file if it was left over after a test that panicked
     let _ = fs::remove_file("./hello.txt");
 
     let mut scratch_buf = [0; MAX_PACKET_SIZE];
 
-    let mut tx = WritingTransfer::start("./files/hello.txt", server_addr, "hello.txt");
+    let mut tx = WritingTransfer::start("./files/hello.txt", server_addr, "hello.txt", options);
     while let Some(_) = tx.step(&mut scratch_buf) {}
 
     // Would cause server to have an error if not handled robustly
@@ -296,13 +316,15 @@ fn interleaved_read_read_same_file(server_addr: &SocketAddr) {
 fn main() {
     env_logger::init().unwrap();
     let addrs = start_server().unwrap();
+    let server_addr = addrs[0];
     for addr in &addrs {
-        wrq_whole_file_test(addr).unwrap();
+        wrq_whole_file_test(addr, vec![]).unwrap();
         rrq_whole_file_test(addr).unwrap();
     }
-    let server_addr = addrs[0];
+
     timeout_test(&server_addr).unwrap();
     wrq_file_exists_test(&server_addr).unwrap();
     rrq_file_not_found_test(&server_addr).unwrap();
     interleaved_read_read_same_file(&server_addr);
+    wrq_whole_file_test(&server_addr, vec![TftpOption::Blocksize(2050)]).unwrap();
 }

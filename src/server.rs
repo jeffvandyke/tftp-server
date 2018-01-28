@@ -360,7 +360,7 @@ impl<IO: IOAdapter + Default> TftpServerImpl<IO> {
     /// Runs the server's event loop.
     pub fn run(&mut self) -> Result<()> {
         let mut events = Events::with_capacity(1024);
-        let mut scratch_buf = [0; MAX_PACKET_SIZE];
+        let mut scratch_buf = vec![0; MAX_PACKET_SIZE];
 
         loop {
             self.poll.poll(&mut events, None)?;

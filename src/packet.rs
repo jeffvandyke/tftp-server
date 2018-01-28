@@ -1,7 +1,6 @@
 use std::{io, result, str};
 use std::io::Write;
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
-use read_512::Read512;
 
 #[derive(Debug)]
 pub enum PacketErr {
@@ -103,7 +102,8 @@ impl From<ErrorCode> for Packet {
     }
 }
 
-pub const MAX_PACKET_SIZE: usize = 1024;
+pub const MAX_BLOCKSIZE: u16 = 65_464;
+pub const MAX_PACKET_SIZE: usize = MAX_BLOCKSIZE as usize + 2/*opcode size*/;
 
 #[derive(PartialEq, Clone, Debug)]
 pub enum Packet {
@@ -152,7 +152,7 @@ impl TftpOption {
         match name {
             "blksize" => {
                 let val = value.parse::<u16>().ok()?;
-                if val >= 8 && val <= 65_464 {
+                if val >= 8 && val <= MAX_BLOCKSIZE {
                     Some(TftpOption::Blocksize(val))
                 } else {
                     None
@@ -288,8 +288,8 @@ fn read_options(mut bytes: &[u8]) -> Result<Vec<TftpOption>> {
 fn read_data_packet(mut bytes: &[u8]) -> Result<Packet> {
     let block_num = bytes.read_u16::<BigEndian>()?;
     let mut data = Vec::with_capacity(512);
-    // TODO: test with longer packets
-    bytes.read_512(&mut data)?;
+    use std::io::Read;
+    bytes.read_to_end(&mut data)?;
 
     Ok(Packet::DATA { block_num, data })
 }
@@ -387,6 +387,7 @@ mod option {
             TftpOption::try_from("blksize", "8"),
             Some(TftpOption::Blocksize(8))
         );
+        assert_eq!(MAX_BLOCKSIZE, 65_464);
         assert_eq!(
             TftpOption::try_from("blksize", "65464"),
             Some(TftpOption::Blocksize(65_464))
