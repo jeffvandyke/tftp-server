@@ -657,6 +657,48 @@ fn wrq_blocksize() {
     );
 }
 
+#[derive(Debug)]
+struct Failer;
+impl Read for Failer {
+    fn read(&mut self, _: &mut [u8]) -> io::Result<usize> {
+        Err(io::Error::new(io::ErrorKind::Other, "testing io read fail"))
+    }
+}
+impl Write for Failer {
+    fn write(&mut self, _: &[u8]) -> io::Result<usize> {
+        Err(io::Error::new(io::ErrorKind::Other, "testing io write fail"))
+    }
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
+}
+
+#[derive(Debug)]
+struct FailIO;
+impl IOAdapter for FailIO {
+    type R = Failer;
+    type W = Failer;
+    fn open_read(&self, _: &Path) -> io::Result<Self::R> {
+        Ok(Failer)
+    }
+    fn create_new(&mut self, _: &Path) -> io::Result<Self::W> {
+        Ok(Failer)
+    }
+}
+
+#[test]
+fn rrq_io_error() {
+    let fio = FailIO;
+    let mut server = TftpServerProto::new(fio, Default::default());
+    let (xfer, res) = server.rx_initial(Packet::RRQ {
+        filename: "".into(),
+        mode: "octet".into(),
+        options: vec![],
+    });
+    assert_matches!(res, Ok(Packet::ERROR { .. }));
+    assert_matches!(xfer, None);
+}
+
 #[test]
 fn policy_readonly() {
     let mut iof = TestIoFactory::new();

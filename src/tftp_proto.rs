@@ -123,23 +123,31 @@ impl<IO: IOAdapter> TftpServerProto<IO> {
 
             Transfer::<IO>::new_read(fread, options)
         };
-        (Some(xfer), Ok(packet))
+
+        if xfer.is_done() {
+            (None, Ok(packet))
+        } else {
+            (Some(xfer), Ok(packet))
+        }
     }
 }
 
 /// The state of an ongoing transfer with one client
+#[derive(Debug)]
 pub enum Transfer<IO: IOAdapter> {
     Rx(TransferRx<IO::W>),
     Tx(TransferTx<IO::R>),
     Complete,
 }
 
+#[derive(Debug)]
 pub struct TransferRx<W: Write> {
     fwrite: W,
     expected_block_num: u16,
     blocksize: u16,
 }
 
+#[derive(Debug)]
 pub struct TransferTx<R: Read> {
     fread: R,
     expected_block_num: u16,
@@ -165,9 +173,12 @@ impl<IO: IOAdapter> Transfer<IO> {
         let packet = if options.is_empty() {
             xfer.read_step()
         } else {
-            Packet::OACK { options }
+            Ok(Packet::OACK { options })
         };
-        (Transfer::Tx(xfer), packet)
+        match packet {
+            Ok(p) => (Transfer::Tx(xfer), p),
+            Err(p) => (Transfer::Complete, p),
+        }
     }
 
     fn new_write(fwrite: IO::W, options: Vec<TftpOption>) -> (Transfer<IO>, Packet) {
@@ -247,22 +258,29 @@ impl<R: Read> TransferTx<R> {
         } else if self.sent_final {
             TftpResult::Done(None)
         } else {
-            TftpResult::Reply(self.read_step())
+            match self.read_step() {
+                Ok(p) => TftpResult::Reply(p),
+                Err(p) => TftpResult::Done(Some(p)),
+            }
         }
     }
 
-    fn read_step(&mut self) -> Packet {
+    fn read_step(&mut self) -> Result<Packet, Packet> {
         let mut v = Vec::with_capacity(self.blocksize as usize);
-        (&mut self.fread)
+        if (&mut self.fread)
             .take(u64::from(self.blocksize))
             .read_to_end(&mut v)
-            .unwrap();
+            .is_err()
+        {
+            return Err(ErrorCode::NotDefined.into());
+        }
+
         self.sent_final = v.len() < self.blocksize as usize;
         self.expected_block_num = self.expected_block_num.wrapping_add(1);
-        Packet::DATA {
+        Ok(Packet::DATA {
             block_num: self.expected_block_num,
             data: v,
-        }
+        })
     }
 }
 
