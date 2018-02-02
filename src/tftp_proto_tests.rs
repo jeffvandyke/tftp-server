@@ -658,15 +658,27 @@ fn wrq_blocksize() {
 }
 
 #[derive(Debug)]
-struct Failer;
+struct Failer {
+    packets: usize,
+}
 impl Read for Failer {
-    fn read(&mut self, _: &mut [u8]) -> io::Result<usize> {
-        Err(io::Error::new(io::ErrorKind::Other, "testing io read fail"))
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        self.packets = self.packets.saturating_sub(1);
+        if self.packets == 0 {
+            Err(io::Error::new(io::ErrorKind::Other, "testing read fail"))
+        } else {
+            Ok(buf.len()) // pretend we read stuff
+        }
     }
 }
 impl Write for Failer {
-    fn write(&mut self, _: &[u8]) -> io::Result<usize> {
-        Err(io::Error::new(io::ErrorKind::Other, "testing io write fail"))
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        self.packets = self.packets.saturating_sub(1);
+        if self.packets == 0 {
+            Err(io::Error::new(io::ErrorKind::Other, "testing write fail"))
+        } else {
+            Ok(buf.len()) // pretend we wrote stuff
+        }
     }
     fn flush(&mut self) -> io::Result<()> {
         Ok(())
@@ -674,21 +686,27 @@ impl Write for Failer {
 }
 
 #[derive(Debug)]
-struct FailIO;
+struct FailIO {
+    packets: usize,
+}
 impl IOAdapter for FailIO {
     type R = Failer;
     type W = Failer;
     fn open_read(&self, _: &Path) -> io::Result<Self::R> {
-        Ok(Failer)
+        Ok(Failer {
+            packets: self.packets,
+        })
     }
     fn create_new(&mut self, _: &Path) -> io::Result<Self::W> {
-        Ok(Failer)
+        Ok(Failer {
+            packets: self.packets,
+        })
     }
 }
 
 #[test]
 fn rrq_io_error() {
-    let fio = FailIO;
+    let fio = FailIO { packets: 0 };
     let mut server = TftpServerProto::new(fio, Default::default());
     let (xfer, res) = server.rx_initial(Packet::RRQ {
         filename: "".into(),
