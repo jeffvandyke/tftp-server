@@ -339,7 +339,7 @@ fn interleaved_read_read_same_file(server_addr: &SocketAddr) {
 }
 
 fn main() {
-    env_logger::init().unwrap();
+    env_logger::init();
     let addrs = start_server().unwrap();
     let server_addr = addrs[0];
     for addr in &addrs {

@@ -13,7 +13,7 @@ use std::time::Duration;
 use clap::{App, Arg};
 
 fn main() {
-    env_logger::init().unwrap();
+    env_logger::init();
 
     let arg_ip = "IP address";
     let arg_dir = "Directory";
