@@ -663,20 +663,20 @@ struct Failer {
 }
 impl Read for Failer {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        self.packets = self.packets.saturating_sub(1);
         if self.packets == 0 {
             Err(io::Error::new(io::ErrorKind::Other, "testing read fail"))
         } else {
+            self.packets = self.packets.saturating_sub(1);
             Ok(buf.len()) // pretend we read stuff
         }
     }
 }
 impl Write for Failer {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.packets = self.packets.saturating_sub(1);
         if self.packets == 0 {
             Err(io::Error::new(io::ErrorKind::Other, "testing write fail"))
         } else {
+            self.packets = self.packets.saturating_sub(1);
             Ok(buf.len()) // pretend we wrote stuff
         }
     }
@@ -715,6 +715,24 @@ fn rrq_io_error() {
     });
     assert_matches!(res, Ok(Packet::ERROR { .. }));
     assert_matches!(xfer, None);
+}
+
+#[test]
+fn rrq_io_error_during() {
+    let fio = FailIO { packets: 1 };
+    let mut server = TftpServerProto::new(fio, Default::default());
+    let (xfer, res) = server.rx_initial(Packet::RRQ {
+        filename: "".into(),
+        mode: "octet".into(),
+        options: vec![],
+    });
+    assert_matches!(res, Ok(Packet::DATA { .. }));
+    let mut xfer = xfer.unwrap();
+    assert_matches!(
+        xfer.rx(Packet::ACK(1)),
+        TftpResult::Done(Some(Packet::ERROR { .. }))
+    );
+    assert!(xfer.is_done());
 }
 
 #[test]
