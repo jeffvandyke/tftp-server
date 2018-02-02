@@ -292,7 +292,9 @@ impl<W: Write> TransferRx<W> {
                 msg: "Data packet lost".to_owned(),
             }))
         } else {
-            self.fwrite.write_all(data).unwrap();
+            if self.fwrite.write_all(data).is_err() {
+                return TftpResult::Done(Some(ErrorCode::NotDefined.into()));
+            }
             self.expected_block_num = block_num.wrapping_add(1);
             if data.len() < self.blocksize as usize {
                 TftpResult::Done(Some(Packet::ACK(block_num)))

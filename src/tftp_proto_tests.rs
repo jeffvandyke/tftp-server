@@ -736,6 +736,27 @@ fn rrq_io_error_during() {
 }
 
 #[test]
+fn wrq_io_error() {
+    let fio = FailIO { packets: 0 };
+    let mut server = TftpServerProto::new(fio, Default::default());
+    let (xfer, res) = server.rx_initial(Packet::WRQ {
+        filename: "".into(),
+        mode: "octet".into(),
+        options: vec![],
+    });
+    assert_matches!(res, Ok(Packet::ACK (0)));
+    let mut xfer = xfer.unwrap();
+    assert_matches!(
+        xfer.rx(Packet::DATA {
+            block_num: 1,
+            data: vec![0; 512],
+        }),
+        TftpResult::Done(Some(Packet::ERROR { .. }))
+    );
+    assert!(xfer.is_done());
+}
+
+#[test]
 fn policy_readonly() {
     let mut iof = TestIoFactory::new();
     let amt = 100;
