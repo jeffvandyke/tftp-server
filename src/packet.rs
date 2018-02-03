@@ -221,29 +221,61 @@ impl Packet {
     }
 }
 
-/// Reads until the zero byte and returns a string containing the bytes read
-/// and the rest of the buffer, skipping the zero byte
-fn read_string(bytes: &[u8]) -> Result<(String, &[u8])> {
-    let result_bytes = bytes
-        .iter()
-        .take_while(|c| **c != 0)
-        .cloned()
-        .collect::<Vec<u8>>();
-    // TODO: add test for error condition below
-    if result_bytes.len() == bytes.len() {
-        // reading didn't stop on a zero byte
-        return Err(PacketErr::StrOutOfBounds);
+use self::strings::Strings;
+mod strings {
+    /// Interprets a buffer as a series of null-terminated UTF-8 strings,
+    /// and iterates over them in order
+    pub struct Strings<'a> {
+        bytes: &'a [u8],
+    }
+    impl<'a> From<&'a [u8]> for Strings<'a> {
+        fn from(bytes: &'a [u8]) -> Self {
+            Self { bytes }
+        }
+    }
+    impl<'a> Iterator for Strings<'a> {
+        type Item = &'a str;
+
+        fn next(&mut self) -> Option<Self::Item> {
+            let zero = self.bytes.iter().position(|c| *c == 0)?;
+            let s = ::std::str::from_utf8(&self.bytes[..zero]);
+            self.bytes = self.bytes.split_at(zero + 1).1;
+            s.ok()
+        }
     }
 
-    let result_str = str::from_utf8(result_bytes.as_slice())?.to_string();
-    let (_, tail) = bytes.split_at(result_bytes.len() + 1 /* +1 so we skip the \0 byte*/);
-    Ok((result_str, tail))
+    #[test]
+    fn simple() {
+        let a: &[u8] = b"hello\0";
+        let mut s = Strings::from(a);
+        assert_eq!(s.next(), Some("hello"));
+        assert_eq!(s.next(), None);
+    }
+    #[test]
+    fn two() {
+        let a: &[u8] = b"hello\0world\0";
+        let mut s = Strings::from(a);
+        assert_eq!(s.next(), Some("hello"));
+        assert_eq!(s.next(), Some("world"));
+        assert_eq!(s.next(), None);
+    }
+    #[test]
+    fn junk() {
+        let a: &[u8] = b"hello\0dude";
+        let mut s = Strings::from(a);
+        assert_eq!(s.next(), Some("hello"));
+        assert_eq!(s.next(), None);
+        assert_eq!(s.next(), None);
+    }
 }
 
 fn read_rrq_packet(bytes: &[u8]) -> Result<Packet> {
-    let (filename, rest) = read_string(bytes)?;
-    let (mode, rest) = read_string(rest)?;
-    let options = read_options(rest)?;
+    let mut strings = Strings::from(bytes);
+
+    let filename = strings.next().ok_or(PacketErr::StrOutOfBounds)?.to_owned();
+    let mode = strings.next().ok_or(PacketErr::StrOutOfBounds)?.to_owned();
+    let options = read_options(strings);
+
     Ok(Packet::RRQ {
         filename,
         mode,
@@ -252,9 +284,12 @@ fn read_rrq_packet(bytes: &[u8]) -> Result<Packet> {
 }
 
 fn read_wrq_packet(bytes: &[u8]) -> Result<Packet> {
-    let (filename, rest) = read_string(bytes)?;
-    let (mode, rest) = read_string(rest)?;
-    let options = read_options(rest)?;
+    let mut strings = Strings::from(bytes);
+
+    let filename = strings.next().ok_or(PacketErr::StrOutOfBounds)?.to_owned();
+    let mode = strings.next().ok_or(PacketErr::StrOutOfBounds)?.to_owned();
+    let options = read_options(strings);
+
     Ok(Packet::WRQ {
         filename,
         mode,
@@ -262,26 +297,17 @@ fn read_wrq_packet(bytes: &[u8]) -> Result<Packet> {
     })
 }
 
-fn read_options(mut bytes: &[u8]) -> Result<Vec<TftpOption>> {
-    // TODO: this may need a rework of read_string
+fn read_options(mut strings: Strings) -> Vec<TftpOption> {
     let mut options = vec![];
-    loop {
-        // errors ignored while parsing options
-        let (opt, rest) = match read_string(bytes) {
-            Ok(v) => v,
-            _ => break,
-        };
-        let (value, rest) = match read_string(rest) {
-            Ok(v) => v,
-            _ => break,
-        };
-        bytes = rest;
-        if let Some(opt) = TftpOption::try_from(&opt, &value) {
+
+    // errors ignored while parsing options
+    while let Some((opt, value)) = strings.next().and_then(|o| strings.next().map(|v| (o, v))) {
+        if let Some(opt) = TftpOption::try_from(opt, value) {
             options.push(opt);
         }
     }
 
-    Ok(options)
+    options
 }
 
 fn read_data_packet(mut bytes: &[u8]) -> Result<Packet> {
@@ -300,13 +326,15 @@ fn read_ack_packet(mut bytes: &[u8]) -> Result<Packet> {
 
 fn read_error_packet(mut bytes: &[u8]) -> Result<Packet> {
     let code = ErrorCode::from_u16(bytes.read_u16::<BigEndian>()?)?;
-    let (msg, _) = read_string(bytes)?;
+    let mut strings = Strings::from(bytes);
+    let msg = strings.next().ok_or(PacketErr::StrOutOfBounds)?.to_owned();
 
     Ok(Packet::ERROR { code, msg })
 }
 
 fn read_oack_packet(bytes: &[u8]) -> Result<Packet> {
-    let options = read_options(bytes)?;
+    let strings = Strings::from(bytes);
+    let options = read_options(strings);
 
     Ok(Packet::OACK { options })
 }
@@ -394,41 +422,6 @@ mod option {
 #[cfg(test)]
 mod tests {
     use super::*;
-    macro_rules! test_read_string {
-    ($name:ident, $bytes:expr, $start_pos:expr, $string:expr, $end_pos:expr) => {
-        #[test]
-        fn $name() {
-            let mut bytes = [0; MAX_PACKET_SIZE];
-            let seed_bytes = $bytes.chars().collect::<Vec<_>>();
-            for i in 0..$bytes.len() {
-                bytes[i] = seed_bytes[i] as u8;
-            }
-
-            let result = read_string(&bytes[$start_pos..seed_bytes.len()]);
-            assert!(result.is_ok());
-            let _ = result.map(|(string, rest)| {
-                assert_eq!(string, $string);
-                assert_eq!(seed_bytes.len() - rest.len(), $end_pos);
-            });
-        }
-    };
-    }
-
-    test_read_string!(read_string_normal, "hello world!\0", 0, "hello world!", 13);
-    test_read_string!(
-        read_string_zero_in_mid,
-        "hello wor\0ld!",
-        0,
-        "hello wor",
-        10
-    );
-    test_read_string!(
-        read_string_diff_start_pos,
-        "hello world!\0",
-        6,
-        "world!",
-        13
-    );
 
     macro_rules! packet_enc_dec_test {
         ($name:ident, $packet:expr) => {
