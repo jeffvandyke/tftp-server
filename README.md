@@ -1,15 +1,13 @@
 tftp-server
 ===========
 
-#### A TFTP server implementation in Rust
-
-This is a server implementation of the TFTP protocol ([IETF RFC 1350](https://tools.ietf.org/html/rfc1350)).
+#### A [TFTP](https://tools.ietf.org/html/rfc1350)) server implementation in Rust
 
 Summary
 ----------
-* 100% safe code, no `unsafe` usage
-* Well covered with tests, including error cases
 * Usable as both binary and library
+* 100% safe code, no `unsafe` usage
+* Well tested, including error cases
 * Implements (some for now) RFCs describing extensions to the TFTP protocol
 
 Building and running the server
@@ -55,7 +53,6 @@ Available features:
 * `-r` will make the server treat the served directory as read-only (it will reject all write requests)
 * `-d` or `--directory` specifies the direcotry to serve from (the given path will be prepended to all requested paths)
 * `-t` or `--timeout` specifies the timeout (in seconds) for idle connections
-* supports negotiatiation of the blocksize option
 * see TODO section below
 
 
