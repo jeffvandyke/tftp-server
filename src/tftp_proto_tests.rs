@@ -6,6 +6,7 @@ use packet::{ErrorCode, Packet, TftpOption};
 use tftp_proto::*;
 
 use tftp_proto::TftpResult::{Done, Repeat, Reply};
+use packet::TransferMode::*;
 
 #[test]
 fn initial_ack_err() {
@@ -35,7 +36,7 @@ fn rrq_no_file_gets_error() {
     let mut server = TftpServerProto::new(iof, Default::default());
     let (xfer, res) = server.rx_initial(Packet::RRQ {
         filename: file,
-        mode: "octet".into(),
+        mode: Octet,
         options: vec![],
     });
     assert_matches!(
@@ -53,7 +54,7 @@ fn rrq_mail_gets_error() {
     let (mut server, file, _) = rrq_fixture(132);
     let (xfer, res) = server.rx_initial(Packet::RRQ {
         filename: file,
-        mode: "mail".into(),
+        mode: Mail,
         options: vec![],
     });
     assert_matches!(
@@ -71,7 +72,7 @@ fn rrq_netascii_gets_error() {
     let (mut server, file, _) = rrq_fixture(132);
     let (xfer, res) = server.rx_initial(Packet::RRQ {
         filename: file,
-        mode: "netascii".into(),
+        mode: Netascii,
         options: vec![],
     });
     assert_matches!(
@@ -89,7 +90,7 @@ fn wrq_netascii_gets_error() {
     let (mut server, file, _) = wrq_fixture(132);
     let (xfer, res) = server.rx_initial(Packet::WRQ {
         filename: file,
-        mode: "netascii".into(),
+        mode: Netascii,
         options: vec![],
     });
     assert_matches!(
@@ -117,7 +118,7 @@ fn rrq_small_file_ack_end() {
     let (mut server, file, mut file_bytes) = rrq_fixture(132);
     let (xfer, res) = server.rx_initial(Packet::RRQ {
         filename: file,
-        mode: "octet".into(),
+        mode: Octet,
         options: vec![],
     });
     assert_eq!(
@@ -139,7 +140,7 @@ fn rrq_1_block_file() {
     let (mut server, file, mut file_bytes) = rrq_fixture(512);
     let (xfer, res) = server.rx_initial(Packet::RRQ {
         filename: file,
-        mode: "octet".into(),
+        mode: Octet,
         options: vec![],
     });
     assert_eq!(
@@ -165,7 +166,7 @@ fn rrq_small_file_ack_wrong_block() {
     let (mut server, file, mut file_bytes) = rrq_fixture(132);
     let (xfer, res) = server.rx_initial(Packet::RRQ {
         filename: file,
-        mode: "octet".into(),
+        mode: Octet,
         options: vec![],
     });
     assert_eq!(
@@ -191,7 +192,7 @@ fn rrq_small_file_reply_with_data_illegal() {
     let (mut server, file, mut file_bytes) = rrq_fixture(132);
     let (xfer, res) = server.rx_initial(Packet::RRQ {
         filename: file,
-        mode: "octet".into(),
+        mode: Octet,
         options: vec![],
     });
     assert_eq!(
@@ -220,7 +221,7 @@ fn double_rrq() {
     let (mut server, file, mut file_bytes) = rrq_fixture(132);
     let (xfer, res) = server.rx_initial(Packet::RRQ {
         filename: file.clone(),
-        mode: "octet".into(),
+        mode: Octet,
         options: vec![],
     });
     assert_eq!(
@@ -234,7 +235,7 @@ fn double_rrq() {
     assert_eq!(
         xfer.rx(Packet::RRQ {
             filename: file,
-            mode: "octet".into(),
+            mode: Octet,
             options: vec![],
         }),
         TftpResult::Err(TftpError::TransferAlreadyRunning)
@@ -246,7 +247,7 @@ fn rrq_2_blocks_ok() {
     let (mut server, file, mut file_bytes) = rrq_fixture(612);
     let (xfer, res) = server.rx_initial(Packet::RRQ {
         filename: file.clone(),
-        mode: "octet".into(),
+        mode: Octet,
         options: vec![],
     });
     assert_eq!(
@@ -272,7 +273,7 @@ fn rrq_2_blocks_second_lost_ack_repeat_ok() {
     let (mut server, file, mut file_bytes) = rrq_fixture(612);
     let (xfer, res) = server.rx_initial(Packet::RRQ {
         filename: file.clone(),
-        mode: "octet".into(),
+        mode: Octet,
         options: vec![],
     });
     assert_eq!(
@@ -301,7 +302,7 @@ fn rrq_large_file_blocknum_wraparound() {
     let (mut server, file, mut file_bytes) = rrq_fixture(size_bytes);
     let (xfer, res) = server.rx_initial(Packet::RRQ {
         filename: file,
-        mode: "octet".into(),
+        mode: Octet,
         options: vec![],
     });
     assert_eq!(
@@ -343,7 +344,7 @@ fn rrq_small_file_wrq_already_running() {
     let (mut server, file, mut file_bytes) = rrq_fixture(132);
     let (xfer, res) = server.rx_initial(Packet::RRQ {
         filename: file.clone(),
-        mode: "octet".into(),
+        mode: Octet,
         options: vec![],
     });
     assert_eq!(
@@ -357,7 +358,7 @@ fn rrq_small_file_wrq_already_running() {
     assert_eq!(
         xfer.rx(Packet::WRQ {
             filename: file,
-            mode: "octet".into(),
+            mode: Octet,
             options: vec![],
         }),
         TftpResult::Err(TftpError::TransferAlreadyRunning)
@@ -369,7 +370,7 @@ fn rrq_small_file_err_kills_transfer() {
     let (mut server, file, mut file_bytes) = rrq_fixture(612);
     let (xfer, res) = server.rx_initial(Packet::RRQ {
         filename: file.clone(),
-        mode: "octet".into(),
+        mode: Octet,
         options: vec![],
     });
     assert_eq!(
@@ -393,7 +394,7 @@ fn wrq_already_exists_error() {
     let mut server = TftpServerProto::new(iof, Default::default());
     let (xfer, res) = server.rx_initial(Packet::WRQ {
         filename: file,
-        mode: "octet".into(),
+        mode: Octet,
         options: vec![],
     });
     assert_matches!(
@@ -432,7 +433,7 @@ fn wrq_mail_gets_error() {
     let (mut server, file, _) = wrq_fixture(200);
     let (xfer, res) = server.rx_initial(Packet::WRQ {
         filename: file,
-        mode: "mail".into(),
+        mode: Mail,
         options: vec![],
     });
     assert_matches!(
@@ -450,7 +451,7 @@ fn wrq_small_file_ack_end() {
     let (mut server, file, mut file_bytes) = wrq_fixture(132);
     let (xfer, res) = server.rx_initial(Packet::WRQ {
         filename: file,
-        mode: "octet".into(),
+        mode: Octet,
         options: vec![],
     });
     assert_eq!(res, Ok(Packet::ACK(0)));
@@ -471,7 +472,7 @@ fn wrq_1_block_file() {
     let (mut server, file, mut file_bytes) = wrq_fixture(512);
     let (xfer, res) = server.rx_initial(Packet::WRQ {
         filename: file,
-        mode: "octet".into(),
+        mode: Octet,
         options: vec![],
     });
     assert_eq!(res, Ok(Packet::ACK(0)));
@@ -504,7 +505,7 @@ fn wrq_small_file_reply_with_ack_illegal() {
     let (mut server, file, mut file_bytes) = wrq_fixture(512);
     let (xfer, res) = server.rx_initial(Packet::WRQ {
         filename: file,
-        mode: "octet".to_owned(),
+        mode: Octet,
         options: vec![],
     });
     assert_eq!(res, Ok(Packet::ACK(0)));
@@ -537,7 +538,7 @@ fn wrq_small_file_block_id_not_1_err() {
     let (mut server, file, mut file_bytes) = wrq_fixture_early_termination(132);
     let (xfer, res) = server.rx_initial(Packet::WRQ {
         filename: file,
-        mode: "octet".to_owned(),
+        mode: Octet,
         options: vec![],
     });
     assert_eq!(res, Ok(Packet::ACK(0)));
@@ -567,7 +568,7 @@ fn wrq_large_file_blocknum_wraparound() {
     let (mut server, file, mut file_bytes) = wrq_fixture(size_bytes);
     let (xfer, res) = server.rx_initial(Packet::WRQ {
         filename: file,
-        mode: "octet".to_owned(),
+        mode: Octet,
         options: vec![],
     });
     assert_eq!(res, Ok(Packet::ACK(0)));
@@ -598,7 +599,7 @@ fn rrq_blocksize() {
     let (mut server, file, mut file_bytes) = rrq_fixture(1234 + 1233);
     let (xfer, res) = server.rx_initial(Packet::RRQ {
         filename: file,
-        mode: "octet".into(),
+        mode: Octet,
         options: vec![TftpOption::Blocksize(1234)],
     });
     assert_eq!(
@@ -630,7 +631,7 @@ fn wrq_blocksize() {
     let (mut server, file, mut file_bytes) = wrq_fixture(1234 + 1233);
     let (xfer, res) = server.rx_initial(Packet::WRQ {
         filename: file,
-        mode: "octet".into(),
+        mode: Octet,
         options: vec![TftpOption::Blocksize(1234)],
     });
     assert_eq!(
@@ -705,7 +706,7 @@ fn rrq_io_error() {
     let mut server = TftpServerProto::new(fio, Default::default());
     let (xfer, res) = server.rx_initial(Packet::RRQ {
         filename: "".into(),
-        mode: "octet".into(),
+        mode: Octet,
         options: vec![],
     });
     assert_matches!(res, Ok(Packet::ERROR { .. }));
@@ -718,7 +719,7 @@ fn rrq_io_error_during() {
     let mut server = TftpServerProto::new(fio, Default::default());
     let (xfer, res) = server.rx_initial(Packet::RRQ {
         filename: "".into(),
-        mode: "octet".into(),
+        mode: Octet,
         options: vec![],
     });
     assert_matches!(res, Ok(Packet::DATA { .. }));
@@ -733,7 +734,7 @@ fn wrq_io_error() {
     let mut server = TftpServerProto::new(fio, Default::default());
     let (xfer, res) = server.rx_initial(Packet::WRQ {
         filename: "".into(),
-        mode: "octet".into(),
+        mode: Octet,
         options: vec![],
     });
     assert_matches!(res, Ok(Packet::ACK(0)));

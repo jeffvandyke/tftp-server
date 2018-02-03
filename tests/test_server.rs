@@ -13,6 +13,8 @@ use std::borrow::BorrowMut;
 use tftp_server::packet::{ErrorCode, Packet, TftpOption, MAX_PACKET_SIZE};
 use tftp_server::server::{Result, ServerConfig, TftpServer};
 
+use tftp_server::packet::TransferMode::*;
+
 const TIMEOUT: u64 = 3;
 
 fn create_socket(timeout: Option<Duration>) -> Result<UdpSocket> {
@@ -68,7 +70,7 @@ fn timeout_test(server_addr: &SocketAddr) -> Result<()> {
     let socket = create_socket(None)?;
     let init_packet = Packet::WRQ {
         filename: "hello.txt".into(),
-        mode: "octet".into(),
+        mode: Octet,
         options: vec![],
     };
     socket.send_to(init_packet.into_bytes()?.as_slice(), server_addr)?;
@@ -118,7 +120,7 @@ impl WritingTransfer {
         };
         let init_packet = Packet::WRQ {
             filename: server_file.into(),
-            mode: "octet".into(),
+            mode: Octet,
             options,
         };
         xfer.socket
@@ -216,7 +218,7 @@ impl ReadingTransfer {
         };
         let init_packet = Packet::RRQ {
             filename: server_file.into(),
-            mode: "octet".into(),
+            mode: Octet,
             options,
         };
         xfer.socket
@@ -288,7 +290,7 @@ fn wrq_file_exists_test(server_addr: &SocketAddr) -> Result<()> {
     let socket = create_socket(None)?;
     let init_packet = Packet::WRQ {
         filename: "./files/hello.txt".into(),
-        mode: "octet".into(),
+        mode: Octet,
         options: vec![],
     };
     socket.send_to(init_packet.into_bytes()?.as_slice(), server_addr)?;
@@ -304,7 +306,7 @@ fn rrq_file_not_found_test(server_addr: &SocketAddr) -> Result<()> {
     let socket = create_socket(None)?;
     let init_packet = Packet::RRQ {
         filename: "./hello.txt".into(),
-        mode: "octet".into(),
+        mode: Octet,
         options: vec![],
     };
     socket.send_to(init_packet.into_bytes()?.as_slice(), server_addr)?;

@@ -102,9 +102,10 @@ impl<IO: IOAdapter> TftpServerProto<IO> {
             } => (filename, mode, options, true),
             _ => return (None, Err(TftpError::NotIniatingPacket)),
         };
-        match mode.as_ref() {
-            "octet" => {}
-            "mail" => return (None, Ok(ErrorCode::NoUser.into())),
+        use packet::TransferMode;
+        match mode {
+            TransferMode::Octet => {}
+            TransferMode::Mail => return (None, Ok(ErrorCode::NoUser.into())),
             _ => return (None, Ok(ErrorCode::NotDefined.into())),
         }
         let file = Path::new(&filename);

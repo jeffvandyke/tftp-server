@@ -6,6 +6,7 @@ use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 pub enum PacketErr {
     StrOutOfBounds,
     OpCodeOutOfBounds,
+    UnsupportedField,
     Utf8Error(str::Utf8Error),
     IOError(io::Error),
 }
@@ -109,12 +110,12 @@ pub const MAX_PACKET_SIZE: usize = MAX_BLOCKSIZE as usize + 2/*opcode size*/;
 pub enum Packet {
     RRQ {
         filename: String,
-        mode: String,
+        mode: TransferMode,
         options: Vec<TftpOption>,
     },
     WRQ {
         filename: String,
-        mode: String,
+        mode: TransferMode,
         options: Vec<TftpOption>,
     },
     DATA {
@@ -129,6 +130,40 @@ pub enum Packet {
     OACK {
         options: Vec<TftpOption>,
     },
+}
+
+#[derive(PartialEq, Copy, Clone, Debug)]
+pub enum TransferMode {
+    Octet,
+    Mail,
+    Netascii,
+}
+
+impl TransferMode {
+    fn try_from(s: &str) -> Result<Self> {
+        use self::TransferMode::*;
+        if "octet".eq_ignore_ascii_case(s) {
+            Ok(Octet)
+        } else if "netascii".eq_ignore_ascii_case(s) {
+            Ok(Netascii)
+        } else if "mail".eq_ignore_ascii_case(s) {
+            Ok(Mail)
+        } else {
+            Err(PacketErr::UnsupportedField)
+        }
+    }
+}
+
+use std::fmt;
+impl fmt::Display for TransferMode {
+    fn fmt(&self, f: &mut fmt::Formatter) -> result::Result<(), fmt::Error> {
+        use self::TransferMode::*;
+        match *self {
+            Octet => write!(f, "octet"),
+            Mail => write!(f, "mail"),
+            Netascii => write!(f, "netascii"),
+        }
+    }
 }
 
 #[derive(PartialEq, Clone, Debug)]
@@ -198,12 +233,12 @@ impl Packet {
         match *self {
             Packet::RRQ {
                 ref filename,
-                ref mode,
+                mode,
                 ref options,
             } => rw_packet_bytes(OpCode::RRQ, filename, mode, options, buf),
             Packet::WRQ {
                 ref filename,
-                ref mode,
+                mode,
                 ref options,
             } => rw_packet_bytes(OpCode::WRQ, filename, mode, options, buf),
             Packet::DATA {
@@ -269,7 +304,7 @@ fn read_rrq_packet(bytes: &[u8]) -> Result<Packet> {
     let mut strings = Strings::from(bytes);
 
     let filename = strings.next().ok_or(PacketErr::StrOutOfBounds)?.to_owned();
-    let mode = strings.next().ok_or(PacketErr::StrOutOfBounds)?.to_owned();
+    let mode = TransferMode::try_from(strings.next().ok_or(PacketErr::StrOutOfBounds)?)?;
     let options = read_options(strings);
 
     Ok(Packet::RRQ {
@@ -283,7 +318,7 @@ fn read_wrq_packet(bytes: &[u8]) -> Result<Packet> {
     let mut strings = Strings::from(bytes);
 
     let filename = strings.next().ok_or(PacketErr::StrOutOfBounds)?.to_owned();
-    let mode = strings.next().ok_or(PacketErr::StrOutOfBounds)?.to_owned();
+    let mode = TransferMode::try_from(strings.next().ok_or(PacketErr::StrOutOfBounds)?)?;
     let options = read_options(strings);
 
     Ok(Packet::WRQ {
@@ -338,7 +373,7 @@ fn read_oack_packet(bytes: &[u8]) -> Result<Packet> {
 fn rw_packet_bytes(
     packet: OpCode,
     filename: &str,
-    mode: &str,
+    mode: TransferMode,
     options: &[TftpOption],
     buf: &mut Write,
 ) -> Result<()> {
@@ -442,7 +477,7 @@ mod tests {
         rrq,
         Packet::RRQ {
             filename: "/a/b/c/hello.txt".to_string(),
-            mode: "netascii".to_string(),
+            mode: TransferMode::Netascii,
             options: vec![],
         }
     );
@@ -450,7 +485,7 @@ mod tests {
         rrq_blocksize,
         Packet::RRQ {
             filename: "/a/b/c/hello.txt".to_string(),
-            mode: "netascii".to_string(),
+            mode: TransferMode::Netascii,
             options: vec![TftpOption::Blocksize(735)],
         }
     );
@@ -458,7 +493,7 @@ mod tests {
         wrq,
         Packet::WRQ {
             filename: "./world.txt".to_string(),
-            mode: "octet".to_string(),
+            mode: TransferMode::Octet,
             options: vec![],
         }
     );
@@ -466,7 +501,7 @@ mod tests {
         wrq_blocksize,
         Packet::WRQ {
             filename: "./world.txt".to_string(),
-            mode: "octet".to_string(),
+            mode: TransferMode::Octet,
             options: vec![TftpOption::Blocksize(846)],
         }
     );
