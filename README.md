@@ -1,7 +1,7 @@
 tftp-server
 ===========
 
-#### A [TFTP](https://tools.ietf.org/html/rfc1350)) server implementation in Rust
+#### A [TFTP](https://tools.ietf.org/html/rfc1350) server implementation in Rust
 
 Summary
 ----------
