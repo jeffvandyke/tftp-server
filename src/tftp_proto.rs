@@ -19,6 +19,7 @@ pub enum TftpResult {
     /// Indicates an error encountered while processing the packet
     Err(TftpError),
 }
+use self::TftpResult::{Done, Repeat, Reply};
 
 #[derive(Debug, PartialEq)]
 pub enum TftpError {
@@ -217,7 +218,7 @@ impl<IO: IOAdapter> Transfer<IO> {
     /// Transfer completion can be checked via `Transfer::is_done()`
     pub fn rx(&mut self, packet: Packet) -> TftpResult {
         if self.is_done() {
-            return TftpResult::Done(None);
+            return Done(None);
         }
         let result = match (packet, &mut *self) {
             (Packet::ACK(ack_block), &mut Transfer::Tx(ref mut tx)) => tx.handle_ack(ack_block),
@@ -230,16 +231,16 @@ impl<IO: IOAdapter> Transfer<IO> {
             ) => rx.handle_data(block_num, data),
             (Packet::DATA { .. }, _) | (Packet::ACK(_), _) => {
                 // wrong kind of packet, kill transfer
-                TftpResult::Done(Some(ErrorCode::IllegalTFTP.into()))
+                Done(Some(ErrorCode::IllegalTFTP.into()))
             }
 
             (Packet::ERROR { .. }, _) => {
                 // receiving an error kills the transfer
-                TftpResult::Done(None)
+                Done(None)
             }
             _ => TftpResult::Err(TftpError::TransferAlreadyRunning),
         };
-        if let TftpResult::Done(_) = result {
+        if let Done(_) = result {
             *self = Transfer::Complete;
         }
         result
@@ -249,18 +250,18 @@ impl<IO: IOAdapter> Transfer<IO> {
 impl<R: Read> TransferTx<R> {
     fn handle_ack(&mut self, ack_block: u16) -> TftpResult {
         if ack_block == self.expected_block_num.wrapping_sub(1) {
-            TftpResult::Repeat
+            Repeat
         } else if ack_block != self.expected_block_num {
-            TftpResult::Done(Some(Packet::ERROR {
+            Done(Some(Packet::ERROR {
                 code: ErrorCode::UnknownID,
                 msg: "Incorrect block num in ACK".to_owned(),
             }))
         } else if self.sent_final {
-            TftpResult::Done(None)
+            Done(None)
         } else {
             match self.read_step() {
-                Ok(p) => TftpResult::Reply(p),
-                Err(p) => TftpResult::Done(Some(p)),
+                Ok(p) => Reply(p),
+                Err(p) => Done(Some(p)),
             }
         }
     }
@@ -287,19 +288,19 @@ impl<R: Read> TransferTx<R> {
 impl<W: Write> TransferRx<W> {
     fn handle_data(&mut self, block_num: u16, data: &[u8]) -> TftpResult {
         if block_num != self.expected_block_num {
-            TftpResult::Done(Some(Packet::ERROR {
+            Done(Some(Packet::ERROR {
                 code: ErrorCode::IllegalTFTP,
                 msg: "Data packet lost".to_owned(),
             }))
         } else {
             if self.fwrite.write_all(data).is_err() {
-                return TftpResult::Done(Some(ErrorCode::NotDefined.into()));
+                return Done(Some(ErrorCode::NotDefined.into()));
             }
             self.expected_block_num = block_num.wrapping_add(1);
             if data.len() < self.blocksize as usize {
-                TftpResult::Done(Some(Packet::ACK(block_num)))
+                Done(Some(Packet::ACK(block_num)))
             } else {
-                TftpResult::Reply(Packet::ACK(block_num))
+                Reply(Packet::ACK(block_num))
             }
         }
     }

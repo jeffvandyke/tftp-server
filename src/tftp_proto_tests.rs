@@ -5,6 +5,8 @@ use std::path::Path;
 use packet::{ErrorCode, Packet, TftpOption};
 use tftp_proto::*;
 
+use tftp_proto::TftpResult::{Done, Repeat, Reply};
+
 #[test]
 fn initial_ack_err() {
     let iof = TestIoFactory::new();
@@ -127,9 +129,9 @@ fn rrq_small_file_ack_end() {
     );
     let mut xfer = xfer.unwrap();
     assert!(!xfer.is_done());
-    assert_eq!(xfer.rx(Packet::ACK(1)), TftpResult::Done(None));
+    assert_eq!(xfer.rx(Packet::ACK(1)), Done(None));
     assert!(xfer.is_done());
-    assert_eq!(xfer.rx(Packet::ACK(0)), TftpResult::Done(None));
+    assert_eq!(xfer.rx(Packet::ACK(0)), Done(None));
 }
 
 #[test]
@@ -150,12 +152,12 @@ fn rrq_1_block_file() {
     let mut xfer = xfer.unwrap();
     assert_eq!(
         xfer.rx(Packet::ACK(1)),
-        TftpResult::Reply(Packet::DATA {
+        Reply(Packet::DATA {
             block_num: 2,
             data: vec![],
         })
     );
-    assert_eq!(xfer.rx(Packet::ACK(2)), TftpResult::Done(None));
+    assert_eq!(xfer.rx(Packet::ACK(2)), Done(None));
 }
 
 #[test]
@@ -176,12 +178,12 @@ fn rrq_small_file_ack_wrong_block() {
     let mut xfer = xfer.unwrap();
     assert_eq!(
         xfer.rx(Packet::ACK(2)),
-        TftpResult::Done(Some(Packet::ERROR {
+        Done(Some(Packet::ERROR {
             code: ErrorCode::UnknownID,
             msg: "Incorrect block num in ACK".into(),
         }))
     );
-    assert_eq!(xfer.rx(Packet::ACK(0)), TftpResult::Done(None));
+    assert_eq!(xfer.rx(Packet::ACK(0)), Done(None));
 }
 
 #[test]
@@ -205,12 +207,12 @@ fn rrq_small_file_reply_with_data_illegal() {
             data: vec![],
             block_num: 1,
         }),
-        TftpResult::Done(Some(Packet::ERROR {
+        Done(Some(Packet::ERROR {
             code: ErrorCode::IllegalTFTP,
             ..
         }))
     );
-    assert_eq!(xfer.rx(Packet::ACK(0)), TftpResult::Done(None));
+    assert_eq!(xfer.rx(Packet::ACK(0)), Done(None));
 }
 
 #[test]
@@ -257,12 +259,12 @@ fn rrq_2_blocks_ok() {
     let mut xfer = xfer.unwrap();
     assert_eq!(
         xfer.rx(Packet::ACK(1)),
-        TftpResult::Reply(Packet::DATA {
+        Reply(Packet::DATA {
             block_num: 2,
             data: file_bytes.gen(100),
         })
     );
-    assert_eq!(xfer.rx(Packet::ACK(2)), TftpResult::Done(None));
+    assert_eq!(xfer.rx(Packet::ACK(2)), Done(None));
 }
 
 #[test]
@@ -283,14 +285,14 @@ fn rrq_2_blocks_second_lost_ack_repeat_ok() {
     let mut xfer = xfer.unwrap();
     assert_eq!(
         xfer.rx(Packet::ACK(1)),
-        TftpResult::Reply(Packet::DATA {
+        Reply(Packet::DATA {
             block_num: 2,
             data: file_bytes.gen(100),
         })
     );
     // assuming the second data got lost, and the client re-acks the first data
-    assert_eq!(xfer.rx(Packet::ACK(1)), TftpResult::Repeat);
-    assert_eq!(xfer.rx(Packet::ACK(2)), TftpResult::Done(None));
+    assert_eq!(xfer.rx(Packet::ACK(1)), Repeat);
+    assert_eq!(xfer.rx(Packet::ACK(2)), Done(None));
 }
 
 #[test]
@@ -317,7 +319,7 @@ fn rrq_large_file_blocknum_wraparound() {
         let new_block = block.wrapping_add(1);
         assert_eq!(
             xfer.rx(Packet::ACK(block)),
-            TftpResult::Reply(Packet::DATA {
+            Reply(Packet::DATA {
                 block_num: new_block,
                 data: file_bytes.gen(512),
             })
@@ -328,12 +330,12 @@ fn rrq_large_file_blocknum_wraparound() {
     let new_block = block.wrapping_add(1);
     assert_eq!(
         xfer.rx(Packet::ACK(block)),
-        TftpResult::Reply(Packet::DATA {
+        Reply(Packet::DATA {
             block_num: new_block,
             data: file_bytes.gen(85),
         })
     );
-    assert_eq!(xfer.rx(Packet::ACK(new_block)), TftpResult::Done(None));
+    assert_eq!(xfer.rx(Packet::ACK(new_block)), Done(None));
 }
 
 #[test]
@@ -378,10 +380,7 @@ fn rrq_small_file_err_kills_transfer() {
         })
     );
     let mut xfer = xfer.unwrap();
-    assert_eq!(
-        xfer.rx(Packet::from(ErrorCode::DiskFull)),
-        TftpResult::Done(None)
-    );
+    assert_eq!(xfer.rx(Packet::from(ErrorCode::DiskFull)), Done(None));
     assert!(xfer.is_done());
 }
 
@@ -462,7 +461,7 @@ fn wrq_small_file_ack_end() {
             block_num: 1,
             data: file_bytes.gen(132),
         }),
-        TftpResult::Done(Some(Packet::ACK(1)))
+        Done(Some(Packet::ACK(1)))
     );
     assert!(xfer.is_done());
 }
@@ -482,21 +481,21 @@ fn wrq_1_block_file() {
             block_num: 1,
             data: file_bytes.gen(512),
         }),
-        TftpResult::Reply(Packet::ACK(1))
+        Reply(Packet::ACK(1))
     );
     assert_eq!(
         xfer.rx(Packet::DATA {
             block_num: 2,
             data: vec![],
         }),
-        TftpResult::Done(Some(Packet::ACK(2)))
+        Done(Some(Packet::ACK(2)))
     );
     assert_eq!(
         xfer.rx(Packet::DATA {
             block_num: 2,
             data: vec![],
         }),
-        TftpResult::Done(None)
+        Done(None)
     );
 }
 
@@ -515,11 +514,11 @@ fn wrq_small_file_reply_with_ack_illegal() {
             block_num: 1,
             data: file_bytes.gen(512),
         }),
-        TftpResult::Reply(Packet::ACK(1))
+        Reply(Packet::ACK(1))
     );
     assert_matches!(
         xfer.rx(Packet::ACK(3)),
-        TftpResult::Done(Some(Packet::ERROR {
+        Done(Some(Packet::ERROR {
             code: ErrorCode::IllegalTFTP,
             ..
         }))
@@ -529,7 +528,7 @@ fn wrq_small_file_reply_with_ack_illegal() {
             block_num: 2,
             data: vec![],
         }),
-        TftpResult::Done(None)
+        Done(None)
     );
 }
 
@@ -548,7 +547,7 @@ fn wrq_small_file_block_id_not_1_err() {
             block_num: 2,
             data: file_bytes.gen(132),
         }),
-        TftpResult::Done(Some(Packet::ERROR {
+        Done(Some(Packet::ERROR {
             code: ErrorCode::IllegalTFTP,
             msg: "Data packet lost".to_owned(),
         }))
@@ -558,7 +557,7 @@ fn wrq_small_file_block_id_not_1_err() {
             block_num: 1,
             data: vec![],
         }),
-        TftpResult::Done(None)
+        Done(None)
     );
 }
 
@@ -581,7 +580,7 @@ fn wrq_large_file_blocknum_wraparound() {
                 block_num,
                 data: file_bytes.gen(512),
             }),
-            TftpResult::Reply(Packet::ACK(block_num))
+            Reply(Packet::ACK(block_num))
         );
         block_num = block_num.wrapping_add(1);
     }
@@ -590,7 +589,7 @@ fn wrq_large_file_blocknum_wraparound() {
             block_num,
             data: file_bytes.gen(85),
         }),
-        TftpResult::Done(Some(Packet::ACK(block_num)))
+        Done(Some(Packet::ACK(block_num)))
     );
 }
 
@@ -611,19 +610,19 @@ fn rrq_blocksize() {
     let mut xfer = xfer.unwrap();
     assert_eq!(
         xfer.rx(Packet::ACK(0)),
-        TftpResult::Reply(Packet::DATA {
+        Reply(Packet::DATA {
             block_num: 1,
             data: file_bytes.gen(1234),
         })
     );
     assert_eq!(
         xfer.rx(Packet::ACK(1)),
-        TftpResult::Reply(Packet::DATA {
+        Reply(Packet::DATA {
             block_num: 2,
             data: file_bytes.gen(1233),
         })
     );
-    assert_eq!(xfer.rx(Packet::ACK(2)), TftpResult::Done(None));
+    assert_eq!(xfer.rx(Packet::ACK(2)), Done(None));
 }
 
 #[test]
@@ -646,14 +645,14 @@ fn wrq_blocksize() {
             block_num: 1,
             data: file_bytes.gen(1234),
         }),
-        TftpResult::Reply(Packet::ACK(1))
+        Reply(Packet::ACK(1))
     );
     assert_eq!(
         xfer.rx(Packet::DATA {
             block_num: 2,
             data: file_bytes.gen(1233),
         }),
-        TftpResult::Done(Some(Packet::ACK(2)))
+        Done(Some(Packet::ACK(2)))
     );
 }
 
@@ -728,10 +727,7 @@ fn rrq_io_error_during() {
     });
     assert_matches!(res, Ok(Packet::DATA { .. }));
     let mut xfer = xfer.unwrap();
-    assert_matches!(
-        xfer.rx(Packet::ACK(1)),
-        TftpResult::Done(Some(Packet::ERROR { .. }))
-    );
+    assert_matches!(xfer.rx(Packet::ACK(1)), Done(Some(Packet::ERROR { .. })));
     assert!(xfer.is_done());
 }
 
@@ -744,14 +740,14 @@ fn wrq_io_error() {
         mode: "octet".into(),
         options: vec![],
     });
-    assert_matches!(res, Ok(Packet::ACK (0)));
+    assert_matches!(res, Ok(Packet::ACK(0)));
     let mut xfer = xfer.unwrap();
     assert_matches!(
         xfer.rx(Packet::DATA {
             block_num: 1,
             data: vec![0; 512],
         }),
-        TftpResult::Done(Some(Packet::ERROR { .. }))
+        Done(Some(Packet::ERROR { .. }))
     );
     assert!(xfer.is_done());
 }
