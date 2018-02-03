@@ -148,17 +148,13 @@ impl TftpOption {
     }
 
     fn try_from(name: &str, value: &str) -> Option<Self> {
-        match name {
-            "blksize" => {
-                let val = value.parse::<u16>().ok()?;
-                if val >= 8 && val <= MAX_BLOCKSIZE {
-                    Some(TftpOption::Blocksize(val))
-                } else {
-                    None
-                }
+        if "blksize".eq_ignore_ascii_case(name) {
+            let val = value.parse::<u16>().ok()?;
+            if val >= 8 && val <= MAX_BLOCKSIZE {
+                return Some(TftpOption::Blocksize(val));
             }
-            _ => None,
         }
+        None
     }
 }
 
@@ -397,6 +393,10 @@ mod option {
     fn blocksize_parse() {
         assert_eq!(
             TftpOption::try_from("blksize", "512"),
+            Some(TftpOption::Blocksize(512))
+        );
+        assert_eq!(
+            TftpOption::try_from("bLkSIzE", "512"),
             Some(TftpOption::Blocksize(512))
         );
         assert_eq!(TftpOption::try_from("blksize", "cat"), None);

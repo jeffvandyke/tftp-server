@@ -692,14 +692,10 @@ impl IOAdapter for FailIO {
     type R = Failer;
     type W = Failer;
     fn open_read(&self, _: &Path) -> io::Result<Self::R> {
-        Ok(Failer {
-            bytes: self.bytes,
-        })
+        Ok(Failer { bytes: self.bytes })
     }
     fn create_new(&mut self, _: &Path) -> io::Result<Self::W> {
-        Ok(Failer {
-            bytes: self.bytes,
-        })
+        Ok(Failer { bytes: self.bytes })
     }
 }
 
