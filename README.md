@@ -3,6 +3,15 @@ tftp-server
 
 #### A TFTP server implementation in Rust
 
+This is a server implementation of the TFTP protocol ([IETF RFC 1350](https://tools.ietf.org/html/rfc1350)).
+
+Summary
+----------
+* 100% safe code, no `unsafe` usage
+* Well covered with tests, including error cases
+* Usable as both binary and library
+* Implements (some for now) RFCs describing extensions to the TFTP protocol
+
 Building and running the server
 -------------------------------
 
@@ -50,6 +59,15 @@ Available features:
 * see TODO section below
 
 
+TFTP Protocol Options & Extensions
+---------------------
+The following TFTP extension RFCs are implemented:
+* [RFC 2347: TFTP Option Extension](https://tools.ietf.org/html/rfc2347)
+* [RFC 2348: TFTP Blocksize Option](https://tools.ietf.org/html/rfc2348)
+* (Not yet implemented) [RFC 2349: TFTP Timeout Interval and Transfer Size Options](https://tools.ietf.org/html/rfc2349)
+* (Not yet implemented) [RFC 7440: TFTP Windowsize Option](https://tools.ietf.org/html/rfc7440)
+
+
 Logging and Testing
 -------------------
 
@@ -81,3 +99,5 @@ TODOs
 * [ ] CLI switches for logging
 * [ ] running control (ability to stop server hard or soft)
 * [ ] limit accepted blocksize to stack MSS (smaller on ipv4)
+* [ ] complete implementation of all option extension RFCs
+* [ ] redo packets as in-place buffer references to avoid copying memory
