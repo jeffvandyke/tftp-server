@@ -658,24 +658,24 @@ fn wrq_blocksize() {
 
 #[derive(Debug)]
 struct Failer {
-    packets: usize,
+    bytes: usize,
 }
 impl Read for Failer {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        if self.packets == 0 {
+        if self.bytes == 0 {
             Err(io::Error::new(io::ErrorKind::Other, "testing read fail"))
         } else {
-            self.packets = self.packets.saturating_sub(1);
+            self.bytes = self.bytes.saturating_sub(buf.len());
             Ok(buf.len()) // pretend we read stuff
         }
     }
 }
 impl Write for Failer {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        if self.packets == 0 {
+        if self.bytes == 0 {
             Err(io::Error::new(io::ErrorKind::Other, "testing write fail"))
         } else {
-            self.packets = self.packets.saturating_sub(1);
+            self.bytes = self.bytes.saturating_sub(buf.len());
             Ok(buf.len()) // pretend we wrote stuff
         }
     }
@@ -686,26 +686,26 @@ impl Write for Failer {
 
 #[derive(Debug)]
 struct FailIO {
-    packets: usize,
+    bytes: usize,
 }
 impl IOAdapter for FailIO {
     type R = Failer;
     type W = Failer;
     fn open_read(&self, _: &Path) -> io::Result<Self::R> {
         Ok(Failer {
-            packets: self.packets,
+            bytes: self.bytes,
         })
     }
     fn create_new(&mut self, _: &Path) -> io::Result<Self::W> {
         Ok(Failer {
-            packets: self.packets,
+            bytes: self.bytes,
         })
     }
 }
 
 #[test]
 fn rrq_io_error() {
-    let fio = FailIO { packets: 0 };
+    let fio = FailIO { bytes: 0 };
     let mut server = TftpServerProto::new(fio, Default::default());
     let (xfer, res) = server.rx_initial(Packet::RRQ {
         filename: "".into(),
@@ -718,7 +718,7 @@ fn rrq_io_error() {
 
 #[test]
 fn rrq_io_error_during() {
-    let fio = FailIO { packets: 1 };
+    let fio = FailIO { bytes: 520 };
     let mut server = TftpServerProto::new(fio, Default::default());
     let (xfer, res) = server.rx_initial(Packet::RRQ {
         filename: "".into(),
@@ -733,7 +733,7 @@ fn rrq_io_error_during() {
 
 #[test]
 fn wrq_io_error() {
-    let fio = FailIO { packets: 0 };
+    let fio = FailIO { bytes: 0 };
     let mut server = TftpServerProto::new(fio, Default::default());
     let (xfer, res) = server.rx_initial(Packet::WRQ {
         filename: "".into(),
