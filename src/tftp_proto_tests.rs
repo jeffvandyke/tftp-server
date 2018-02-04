@@ -666,8 +666,9 @@ impl Read for Failer {
         if self.bytes == 0 {
             Err(io::Error::new(io::ErrorKind::Other, "testing read fail"))
         } else {
-            self.bytes = self.bytes.saturating_sub(buf.len());
-            Ok(buf.len()) // pretend we read stuff
+            let amt = ::std::cmp::min(buf.len(), self.bytes);
+            self.bytes -= amt;
+            Ok(amt) // pretend we read stuff
         }
     }
 }
