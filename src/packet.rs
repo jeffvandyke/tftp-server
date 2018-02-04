@@ -332,7 +332,7 @@ fn read_options(mut strings: Strings) -> Vec<TftpOption> {
     let mut options = vec![];
 
     // errors ignored while parsing options
-    while let Some((opt, value)) = strings.next().and_then(|o| strings.next().map(|v| (o, v))) {
+    while let (Some(opt), Some(value)) = (strings.next(), strings.next()) {
         if let Some(opt) = TftpOption::try_from(opt, value) {
             options.push(opt);
         }
