@@ -245,7 +245,7 @@ impl<IO: IOAdapter + Default> TftpServerImpl<IO> {
     /// If the transfer associated with that connection is over,
     /// it instead kills the connection.
     fn process_timer(&mut self) -> Result<()> {
-        let mut tokens = Vec::new();
+        let mut tokens = vec![];
         while let Some(token) = self.timer.poll() {
             tokens.push(token);
         }
