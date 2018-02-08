@@ -32,6 +32,8 @@ impl DeadmanThread {
 
 impl Drop for DeadmanThread {
     fn drop(&mut self) {
-        self.tx.send(()).expect("cannot stop deadman thread");
+        if !::std::thread::panicking() {
+            self.tx.send(()).expect("cannot stop deadman thread");
+        }
     }
 }
