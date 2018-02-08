@@ -15,15 +15,8 @@ use tftp_server::server::{Result, ServerConfig, TftpServer};
 
 use tftp_server::packet::TransferMode::*;
 
-const TIMEOUT: u64 = 3;
-
-fn create_socket(timeout: Option<Duration>) -> Result<UdpSocket> {
-    let socket = UdpSocket::bind((IpAddr::from([127, 0, 0, 1]), 0))?;
-    socket.set_nonblocking(false)?;
-    socket.set_read_timeout(timeout)?;
-    socket.set_write_timeout(timeout)?;
-    Ok(socket)
-}
+mod misc_utils;
+use misc_utils::*;
 
 /// Starts the server in a new thread.
 pub fn start_server() -> Result<Vec<SocketAddr>> {
@@ -80,10 +73,11 @@ fn timeout_test(server_addr: &SocketAddr) -> Result<()> {
     let reply_packet = Packet::read(&buf[0..amt])?;
     assert_eq!(reply_packet, Packet::ACK(0));
 
-    let mut buf = [0; MAX_PACKET_SIZE];
+    let deadman = DeadmanThread::start(Duration::from_millis(3500), "timeout failed");
     let amt = socket.recv(&mut buf)?;
     let reply_packet = Packet::read(&buf[0..amt])?;
     assert_eq!(reply_packet, Packet::ACK(0));
+    drop(deadman);
 
     assert!(fs::metadata("./hello.txt").is_ok());
     assert!(fs::remove_file("./hello.txt").is_ok());
