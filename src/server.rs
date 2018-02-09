@@ -259,7 +259,6 @@ impl<IO: IOAdapter + Default> TftpServerImpl<IO> {
                 self.cancel_connection(&token)?;
             } else if let Some(ref mut conn) = self.connections.get_mut(&token) {
                 if !conn.retransmitted {
-                    eprintln!("retrans for {:?}", token);
                     conn.socket
                         .send_to(conn.last_packet.to_bytes()?.as_slice(), &conn.remote)?;
                 }
