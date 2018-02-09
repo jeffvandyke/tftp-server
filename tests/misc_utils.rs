@@ -22,9 +22,11 @@ impl DeadmanThread {
     pub fn start(dur: Duration, msg: &str) -> Self {
         let msg = msg.to_owned();
         let (tx, rx) = channel();
-        thread::spawn(move || if rx.recv_timeout(dur).is_err() {
-            eprintln!("\nDeadman timeout expired: {}\n", msg);
-            ::std::process::exit(1)
+        thread::spawn(move || {
+            if rx.recv_timeout(dur).is_err() {
+                eprintln!("\nDeadman timeout expired: {}\n", msg);
+                ::std::process::exit(1)
+            }
         });
         Self { tx }
     }
