@@ -48,6 +48,8 @@ struct ConnectionState<IO: IOAdapter> {
     /// The timeout for the last packet. Every time a new packet is received, the
     /// timeout is reset.
     timeout: Timeout,
+    /// Remembers whether a retransmission due to a timeout has occurred
+    retransmitted: bool,
     /// The protocol state associated with this transfer
     transfer: Transfer<IO>,
     /// The last packet sent. This is used when a timeout happens to resend the last packet.
@@ -228,6 +230,7 @@ impl<IO: IOAdapter + Default> TftpServerImpl<IO> {
                 transfer,
                 last_packet: packet,
                 remote,
+                retransmitted: false,
             },
         );
 
@@ -255,8 +258,12 @@ impl<IO: IOAdapter + Default> TftpServerImpl<IO> {
             {
                 self.cancel_connection(&token)?;
             } else if let Some(ref mut conn) = self.connections.get_mut(&token) {
-                conn.socket
-                    .send_to(conn.last_packet.to_bytes()?.as_slice(), &conn.remote)?;
+                if !conn.retransmitted {
+                    eprintln!("retrans for {:?}", token);
+                    conn.socket
+                        .send_to(conn.last_packet.to_bytes()?.as_slice(), &conn.remote)?;
+                }
+                conn.retransmitted = true;
             }
             self.reset_timeout(&token)?;
         }

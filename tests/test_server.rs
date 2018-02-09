@@ -5,7 +5,7 @@ extern crate tftp_server;
 extern crate assert_matches;
 
 use std::fs::{self, File};
-use std::io::{Read, Write};
+use std::io::{self, Read, Write};
 use std::net::{IpAddr, SocketAddr, UdpSocket};
 use std::thread;
 use std::time::Duration;
@@ -78,6 +78,12 @@ fn timeout_test(server_addr: &SocketAddr) -> Result<()> {
     let reply_packet = Packet::read(&buf[0..amt])?;
     assert_eq!(reply_packet, Packet::ACK(0));
     drop(deadman);
+
+    socket.set_read_timeout(Some(Duration::from_millis(3200)));
+    assert_matches!(
+        socket.recv_from(&mut buf), Err(ref e) if e.kind() == io::ErrorKind::WouldBlock,
+        "packet received after connection should have dropped"
+    );
 
     assert!(fs::metadata("./hello.txt").is_ok());
     assert!(fs::remove_file("./hello.txt").is_ok());
