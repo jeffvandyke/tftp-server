@@ -40,11 +40,8 @@ impl From<TimerError> for TftpError {
 
 pub type Result<T> = result::Result<T, TftpError>;
 
-/// The state contained within a connection.
-/// A connection is started when a server socket receives
-/// a RRQ or a WRQ packet and ends when the connection socket
-/// receives a DATA packet less than 516 bytes or if the connection
-/// socket receives an invalid packet.
+/// The state of an ongoing read/write connection with a client,
+/// corresponding to a single read/write transfer
 struct ConnectionState<IO: IOAdapter> {
     /// The UDP socket for the connection that receives ACK, DATA, or ERROR packets.
     socket: UdpSocket,
