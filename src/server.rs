@@ -244,27 +244,31 @@ impl<IO: IOAdapter + Default> TftpServerImpl<IO> {
     /// the last packet sent from the connection.
     /// If the transfer associated with that connection is over,
     /// it instead kills the connection.
-    fn process_timer(&mut self) -> Result<()> {
+    fn process_timer(&mut self, buf: &mut [u8]) -> Result<()> {
         let mut tokens = vec![];
         while let Some(token) = self.timer.poll() {
             tokens.push(token);
         }
 
         for token in tokens {
-            if Some(true)
-                == self.connections
-                    .get(&token)
-                    .map(|conn| conn.transfer.is_done())
-            {
-                self.cancel_connection(&token)?;
-            } else if let Some(ref mut conn) = self.connections.get_mut(&token) {
-                if !conn.retransmitted {
-                    conn.socket
-                        .send_to(conn.last_packet.to_bytes()?.as_slice(), &conn.remote)?;
+            let status = if let Some(ref mut conn) = self.connections.get_mut(&token) {
+                if conn.transfer.is_done() || conn.retransmitted {
+                    Some(Err(()))
+                } else {
+                    let amt = conn.last_packet.write_to_slice(buf)?;
+                    conn.socket.send_to(&buf[..amt], &conn.remote)?;
+                    conn.retransmitted = true;
+                    Some(Ok(()))
                 }
-                conn.retransmitted = true;
+            } else {
+                None
+            };
+
+            match status {
+                Some(Ok(_)) => self.reset_timeout(&token)?,
+                Some(Err(_)) => self.cancel_connection(&token)?,
+                _ => {}
             }
-            self.reset_timeout(&token)?;
         }
 
         Ok(())
@@ -274,7 +278,7 @@ impl<IO: IOAdapter + Default> TftpServerImpl<IO> {
     /// Normally these correspond to packets received on a socket or to a timeout
     fn handle_token(&mut self, token: Token, buf: &mut [u8]) -> Result<()> {
         match token {
-            TIMER => self.process_timer(),
+            TIMER => self.process_timer(buf),
             _ if self.server_sockets.contains_key(&token) => self.handle_server_packet(token, buf),
             _ => self.handle_connection_packet(token, buf),
         }
