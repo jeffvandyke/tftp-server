@@ -79,7 +79,7 @@ fn timeout_test(server_addr: &SocketAddr) -> Result<()> {
     assert_eq!(reply_packet, Packet::ACK(0));
     drop(deadman);
 
-    socket.set_read_timeout(Some(Duration::from_millis(3200)));
+    socket.set_read_timeout(Some(Duration::from_millis(3200))).unwrap();
     assert_matches!(
         socket.recv_from(&mut buf), Err(ref e) if e.kind() == io::ErrorKind::WouldBlock,
         "packet received after connection should have dropped"
