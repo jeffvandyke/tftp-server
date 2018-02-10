@@ -98,3 +98,4 @@ TODOs
 * [ ] limit accepted blocksize to stack MSS (smaller on ipv4)
 * [ ] complete implementation of all option extension RFCs
 * [ ] redo packets as in-place buffer references to avoid copying memory
+* [ ] redo integration tests to run them with harness
