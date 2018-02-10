@@ -301,10 +301,14 @@ mod strings {
 }
 
 fn read_rrq_packet(bytes: &[u8]) -> Result<Packet> {
+    use self::PacketErr::StrOutOfBounds;
+    if bytes.len() > 512 {
+        Err(StrOutOfBounds)?;
+    }
     let mut strings = Strings::from(bytes);
 
-    let filename = strings.next().ok_or(PacketErr::StrOutOfBounds)?.to_owned();
-    let mode = TransferMode::try_from(strings.next().ok_or(PacketErr::StrOutOfBounds)?)?;
+    let filename = strings.next().ok_or(StrOutOfBounds)?.to_owned();
+    let mode = TransferMode::try_from(strings.next().ok_or(StrOutOfBounds)?)?;
     let options = read_options(strings);
 
     Ok(Packet::RRQ {
@@ -315,10 +319,14 @@ fn read_rrq_packet(bytes: &[u8]) -> Result<Packet> {
 }
 
 fn read_wrq_packet(bytes: &[u8]) -> Result<Packet> {
+    use self::PacketErr::StrOutOfBounds;
+    if bytes.len() > 512 {
+        Err(StrOutOfBounds)?;
+    }
     let mut strings = Strings::from(bytes);
 
-    let filename = strings.next().ok_or(PacketErr::StrOutOfBounds)?.to_owned();
-    let mode = TransferMode::try_from(strings.next().ok_or(PacketErr::StrOutOfBounds)?)?;
+    let filename = strings.next().ok_or(StrOutOfBounds)?.to_owned();
+    let mode = TransferMode::try_from(strings.next().ok_or(StrOutOfBounds)?)?;
     let options = read_options(strings);
 
     Ok(Packet::WRQ {
@@ -457,6 +465,30 @@ mod option {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn wrq_max_size() {
+        let p = Packet::WRQ {
+            filename: str::from_utf8(&[b'x'; 512-6]).unwrap().to_owned(),
+            mode: TransferMode::Octet,
+            options: vec![],
+        };
+        let mut v = vec![];
+        p.write_bytes_to(&mut v).unwrap();
+        assert_matches!(Packet::read(&v), Err(_));
+    }
+
+    #[test]
+    fn rrq_max_size() {
+        let p = Packet::RRQ {
+            filename: str::from_utf8(&[b'x'; 512-6]).unwrap().to_owned(),
+            mode: TransferMode::Octet,
+            options: vec![],
+        };
+        let mut v = vec![];
+        p.write_bytes_to(&mut v).unwrap();
+        assert_matches!(Packet::read(&v), Err(_));
+    }
 
     macro_rules! packet_enc_dec_test {
         ($name:ident, $packet:expr) => {
