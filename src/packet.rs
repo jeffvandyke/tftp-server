@@ -469,7 +469,7 @@ mod tests {
     #[test]
     fn wrq_max_size() {
         let p = Packet::WRQ {
-            filename: str::from_utf8(&[b'x'; 512-6]).unwrap().to_owned(),
+            filename: str::from_utf8(&[b'x'; 512 - 6]).unwrap().to_owned(),
             mode: TransferMode::Octet,
             options: vec![],
         };
@@ -481,7 +481,7 @@ mod tests {
     #[test]
     fn rrq_max_size() {
         let p = Packet::RRQ {
-            filename: str::from_utf8(&[b'x'; 512-6]).unwrap().to_owned(),
+            filename: str::from_utf8(&[b'x'; 512 - 6]).unwrap().to_owned(),
             mode: TransferMode::Octet,
             options: vec![],
         };
