@@ -51,7 +51,7 @@ All features are implemented in the library. The binary target is a only an argu
 Available features:
 * `-a` or `--address` to specify an address[:port] to listen on (multiple supported)
 * `-r` will make the server treat the served directory as read-only (it will reject all write requests)
-* `-d` or `--directory` specifies the direcotry to serve from (the given path will be prepended to all requested paths)
+* `-d` or `--directory` specifies the directory to serve from (the given path will be prepended to all requested paths)
 * `-t` or `--timeout` specifies the timeout (in seconds) for idle connections
 * see TODO section below
 
