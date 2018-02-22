@@ -126,11 +126,7 @@ impl<IO: IOAdapter> TftpServerProto<IO> {
             Transfer::<IO>::new_read(fread, options)
         };
 
-        if xfer.is_done() {
-            (None, Ok(packet))
-        } else {
-            (Some(xfer), Ok(packet))
-        }
+        (xfer, Ok(packet))
     }
 }
 
@@ -158,7 +154,7 @@ pub struct TransferTx<R: Read> {
 }
 
 impl<IO: IOAdapter> Transfer<IO> {
-    fn new_read(fread: IO::R, options: Vec<TftpOption>) -> (Transfer<IO>, Packet) {
+    fn new_read(fread: IO::R, options: Vec<TftpOption>) -> (Option<Transfer<IO>>, Packet) {
         let mut blocksize = 512;
         for opt in &options {
             match *opt {
@@ -178,12 +174,12 @@ impl<IO: IOAdapter> Transfer<IO> {
             Ok(Packet::OACK { options })
         };
         match packet {
-            Ok(p) => (Transfer::Tx(xfer), p),
-            Err(p) => (Transfer::Complete, p),
+            Ok(p) => (Some(Transfer::Tx(xfer)), p),
+            Err(p) => (None, p),
         }
     }
 
-    fn new_write(fwrite: IO::W, options: Vec<TftpOption>) -> (Transfer<IO>, Packet) {
+    fn new_write(fwrite: IO::W, options: Vec<TftpOption>) -> (Option<Transfer<IO>>, Packet) {
         let mut blocksize = 512;
         for opt in &options {
             match *opt {
@@ -201,7 +197,7 @@ impl<IO: IOAdapter> Transfer<IO> {
         } else {
             Packet::OACK { options }
         };
-        (Transfer::Rx(xfer), packet)
+        (Some(Transfer::Rx(xfer)), packet)
     }
 
     /// Checks to see if the transfer has completed
