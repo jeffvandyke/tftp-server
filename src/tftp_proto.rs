@@ -64,6 +64,10 @@ impl Default for FSAdapter {
     }
 }
 
+struct TransferMeta {
+    blocksize: u16,
+}
+
 /// The TFTP protocol and filesystem usage implementation,
 /// used as backend for a TFTP server
 pub struct TftpServerProto<IO: IOAdapter> {
@@ -110,20 +114,27 @@ impl<IO: IOAdapter> TftpServerProto<IO> {
         }
         let file = Path::new(&filename);
 
+        let mut meta = TransferMeta { blocksize: 512 };
+        for opt in &options {
+            match *opt {
+                TftpOption::Blocksize(size) => meta.blocksize = size,
+            }
+        }
+
         let (xfer, packet) = if is_write {
             let fwrite = match self.io_proxy.create_new(file) {
                 Ok(f) => f,
                 _ => return (None, Ok(ErrorCode::FileExists.into())),
             };
 
-            Transfer::<IO>::new_write(fwrite, options)
+            Transfer::<IO>::new_write(fwrite, meta, options)
         } else {
             let fread = match self.io_proxy.open_read(file) {
                 Ok(f) => f,
                 _ => return (None, Ok(ErrorCode::FileNotFound.into())),
             };
 
-            Transfer::<IO>::new_read(fread, options)
+            Transfer::<IO>::new_read(fread, meta, options)
         };
 
         (xfer, Ok(packet))
@@ -154,18 +165,16 @@ pub struct TransferTx<R: Read> {
 }
 
 impl<IO: IOAdapter> Transfer<IO> {
-    fn new_read(fread: IO::R, options: Vec<TftpOption>) -> (Option<Transfer<IO>>, Packet) {
-        let mut blocksize = 512;
-        for opt in &options {
-            match *opt {
-                TftpOption::Blocksize(size) => blocksize = size,
-            }
-        }
+    fn new_read(
+        fread: IO::R,
+        meta: TransferMeta,
+        options: Vec<TftpOption>,
+    ) -> (Option<Transfer<IO>>, Packet) {
         let mut xfer = TransferTx {
             fread,
             expected_block_num: 0,
             sent_final: false,
-            blocksize,
+            blocksize: meta.blocksize,
         };
 
         let packet = if options.is_empty() {
@@ -179,17 +188,15 @@ impl<IO: IOAdapter> Transfer<IO> {
         }
     }
 
-    fn new_write(fwrite: IO::W, options: Vec<TftpOption>) -> (Option<Transfer<IO>>, Packet) {
-        let mut blocksize = 512;
-        for opt in &options {
-            match *opt {
-                TftpOption::Blocksize(size) => blocksize = size,
-            }
-        }
+    fn new_write(
+        fwrite: IO::W,
+        meta: TransferMeta,
+        options: Vec<TftpOption>,
+    ) -> (Option<Transfer<IO>>, Packet) {
         let xfer = TransferRx {
             fwrite,
             expected_block_num: 1,
-            blocksize,
+            blocksize: meta.blocksize,
         };
 
         let packet = if options.is_empty() {
