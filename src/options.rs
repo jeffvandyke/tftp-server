@@ -35,7 +35,9 @@ impl TftpOption {
             }
         } else if "timeout".eq_ignore_ascii_case(name) {
             let val = value.parse().ok()?;
-            return Some(TftpOption::TimeoutSecs(val));
+            if val > 0 {
+                return Some(TftpOption::TimeoutSecs(val));
+            }
         } else if "tsize".eq_ignore_ascii_case(name) {
             let val = value.parse().ok()?;
             return Some(TftpOption::TransferSize(val));
@@ -116,12 +118,17 @@ mod tests {
     }
 
     #[test]
-    fn timeout_bound() {
+    fn timeout_bounds() {
         assert_eq!(
             TftpOption::try_from("timeout", "255"),
             Some(TftpOption::TimeoutSecs(255))
         );
         assert_eq!(TftpOption::try_from("TIMEOUT", "256"), None);
+        assert_eq!(
+            TftpOption::try_from("timeout", "1"),
+            Some(TftpOption::TimeoutSecs(1))
+        );
+        assert_eq!(TftpOption::try_from("TIMEOUT", "0"), None);
     }
 
     #[test]
