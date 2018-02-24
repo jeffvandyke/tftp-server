@@ -6,7 +6,7 @@ pub const MAX_BLOCKSIZE: u16 = 65_464;
 pub enum TftpOption {
     Blocksize(u16),
     TransferSize(u64),
-    Timeout(u8),
+    TimeoutSecs(u8),
 }
 
 impl TftpOption {
@@ -19,7 +19,7 @@ impl TftpOption {
             TransferSize(size) => {
                 write!(buf, "tsize\0{}\0", size)?;
             }
-            Timeout(t) => {
+            TimeoutSecs(t) => {
                 write!(buf, "timeout\0{}\0", t)?;
             }
         };
@@ -34,7 +34,7 @@ impl TftpOption {
             }
         } else if "timeout".eq_ignore_ascii_case(name) {
             let val = value.parse().ok()?;
-            return Some(TftpOption::Timeout(val));
+            return Some(TftpOption::TimeoutSecs(val));
         } else if "tsize".eq_ignore_ascii_case(name) {
             let val = value.parse().ok()?;
             return Some(TftpOption::TransferSize(val));
@@ -106,11 +106,11 @@ mod option {
     fn timeout_parse() {
         assert_eq!(
             TftpOption::try_from("timeout", "8"),
-            Some(TftpOption::Timeout(8))
+            Some(TftpOption::TimeoutSecs(8))
         );
         assert_eq!(
             TftpOption::try_from("TIMEOUT", "0"),
-            Some(TftpOption::Timeout(0))
+            Some(TftpOption::TimeoutSecs(0))
         );
     }
 
@@ -118,7 +118,7 @@ mod option {
     fn timeout_bound() {
         assert_eq!(
             TftpOption::try_from("timeout", "255"),
-            Some(TftpOption::Timeout(255))
+            Some(TftpOption::TimeoutSecs(255))
         );
         assert_eq!(TftpOption::try_from("TIMEOUT", "256"), None);
     }
@@ -126,7 +126,7 @@ mod option {
     #[test]
     fn timeout_write() {
         let mut v = vec![];
-        TftpOption::Timeout(4).write_to(&mut v).unwrap();
+        TftpOption::TimeoutSecs(4).write_to(&mut v).unwrap();
         assert_eq!(v, b"timeout\04\0");
     }
 }
