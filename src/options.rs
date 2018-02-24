@@ -2,6 +2,7 @@ use std::io::{self, Write};
 
 pub const MAX_BLOCKSIZE: u16 = 65_464;
 
+/// A TFTP protocol option, proposed via RRQ/WRQ and acknowledged via OACK
 #[derive(PartialEq, Clone, Debug)]
 pub enum TftpOption {
     Blocksize(u16),
@@ -44,7 +45,7 @@ impl TftpOption {
 }
 
 #[cfg(test)]
-mod option {
+mod tests {
     use super::*;
 
     #[test]
