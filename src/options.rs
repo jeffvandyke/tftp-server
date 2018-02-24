@@ -70,6 +70,13 @@ mod option {
     }
 
     #[test]
+    fn blocksize_write() {
+        let mut v = vec![];
+        TftpOption::Blocksize(78).write_to(&mut v).unwrap();
+        assert_eq!(v, b"blksize\078\0");
+    }
+
+    #[test]
     fn transfer_size_parse() {
         assert_eq!(
             TftpOption::try_from("tsize", "56246"),
