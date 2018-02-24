@@ -15,7 +15,8 @@ impl TftpOption {
             Blocksize(size) => {
                 write!(buf, "blksize\0{}\0", size)?;
             }
-            TransferSize(_) => {
+            TransferSize(size) => {
+                write!(buf, "tsize\0{}\0", size)?;
             }
         };
         Ok(())
@@ -78,5 +79,12 @@ mod option {
             TftpOption::try_from("tSiZE", "0"),
             Some(TftpOption::TransferSize(0))
         );
+    }
+
+    #[test]
+    fn transfer_size_write() {
+        let mut v = vec![];
+        TftpOption::TransferSize(54).write_to(&mut v).unwrap();
+        assert_eq!(v, b"tsize\054\0");
     }
 }
