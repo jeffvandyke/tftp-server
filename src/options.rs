@@ -115,6 +115,15 @@ mod option {
     }
 
     #[test]
+    fn timeout_bound() {
+        assert_eq!(
+            TftpOption::try_from("timeout", "255"),
+            Some(TftpOption::Timeout(255))
+        );
+        assert_eq!(TftpOption::try_from("TIMEOUT", "256"), None);
+    }
+
+    #[test]
     fn timeout_write() {
         let mut v = vec![];
         TftpOption::Timeout(4).write_to(&mut v).unwrap();
