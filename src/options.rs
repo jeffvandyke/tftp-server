@@ -5,6 +5,7 @@ pub const MAX_BLOCKSIZE: u16 = 65_464;
 #[derive(PartialEq, Clone, Debug)]
 pub enum TftpOption {
     Blocksize(u16),
+    TransferSize(u64),
 }
 
 impl TftpOption {
@@ -13,6 +14,8 @@ impl TftpOption {
         match *self {
             Blocksize(size) => {
                 write!(buf, "blksize\0{}\0", size)?;
+            }
+            TransferSize(_) => {
             }
         };
         Ok(())
@@ -24,6 +27,9 @@ impl TftpOption {
             if val >= 8 && val <= MAX_BLOCKSIZE {
                 return Some(TftpOption::Blocksize(val));
             }
+        } else if "tsize".eq_ignore_ascii_case(name) {
+            let val = value.parse().ok()?;
+            return Some(TftpOption::TransferSize(val));
         }
         None
     }
@@ -60,5 +66,17 @@ mod option {
             Some(TftpOption::Blocksize(65_464))
         );
         assert_eq!(TftpOption::try_from("blksize", "65465"), None);
+    }
+
+    #[test]
+    fn transfer_size_parse() {
+        assert_eq!(
+            TftpOption::try_from("tsize", "56246"),
+            Some(TftpOption::TransferSize(56246))
+        );
+        assert_eq!(
+            TftpOption::try_from("tSiZE", "0"),
+            Some(TftpOption::TransferSize(0))
+        );
     }
 }

@@ -111,6 +111,7 @@ impl WritingTransfer {
         for opt in &options {
             match *opt {
                 TftpOption::Blocksize(size) => blocksize = u64::from(size),
+                _ => {},
             }
         }
         let xfer = Self {
@@ -209,6 +210,7 @@ impl ReadingTransfer {
         for opt in &options {
             match *opt {
                 TftpOption::Blocksize(size) => blocksize = u64::from(size),
+                _ => {},
             }
         }
         let xfer = Self {

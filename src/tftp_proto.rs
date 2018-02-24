@@ -118,6 +118,7 @@ impl<IO: IOAdapter> TftpServerProto<IO> {
         for opt in &options {
             match *opt {
                 TftpOption::Blocksize(size) => meta.blocksize = size,
+                TftpOption::TransferSize(_) => {}
             }
         }
 
