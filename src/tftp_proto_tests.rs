@@ -130,6 +130,7 @@ fn rrq_small_file_ack_end() {
     );
     let mut xfer = xfer.unwrap();
     assert!(!xfer.is_done());
+    assert_eq!(xfer.timeout_secs(), None);
     assert_eq!(xfer.rx(Packet::ACK(1)), Done(None));
     assert!(xfer.is_done());
     assert_eq!(xfer.rx(Packet::ACK(0)), Done(None));
@@ -866,6 +867,24 @@ fn policy_refuse_file_write_outside_cwd() {
         proxy.create_new("/boo/han".as_ref()),
         Err(ref e) if e.kind() == io::ErrorKind::PermissionDenied
     );
+}
+
+#[test]
+fn option_timeout_rrq() {
+    let (mut server, file, mut file_bytes) = rrq_fixture(1234);
+    let (xfer, res) = server.rx_initial(Packet::RRQ {
+        filename: file,
+        mode: Octet,
+        options: vec![TftpOption::TimeoutSecs(4)],
+    });
+    assert_eq!(
+        res,
+        Ok(Packet::OACK {
+            options: vec![TftpOption::TimeoutSecs(4)],
+        })
+    );
+    let mut xfer = xfer.unwrap();
+    assert_eq!(xfer.timeout_secs(), Some(4));
 }
 
 #[test]

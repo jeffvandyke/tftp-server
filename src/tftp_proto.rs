@@ -168,7 +168,7 @@ pub struct TransferTx<R: Read> {
     fread: R,
     expected_block_num: u16,
     sent_final: bool,
-    blocksize: u16,
+    meta: TransferMeta,
 }
 
 impl<IO: IOAdapter> Transfer<IO> {
@@ -181,7 +181,7 @@ impl<IO: IOAdapter> Transfer<IO> {
             fread,
             expected_block_num: 0,
             sent_final: false,
-            blocksize: meta.blocksize,
+            meta,
         };
 
         let packet = if options.is_empty() {
@@ -226,7 +226,8 @@ impl<IO: IOAdapter> Transfer<IO> {
     /// or NULL if the server default should be used
     pub fn timeout_secs(&self) -> Option<u8> {
         match *self {
-            Transfer::Rx(TransferRx { ref meta, .. }) => meta.timeout,
+            Transfer::Rx(TransferRx { ref meta, .. })
+            | Transfer::Tx(TransferTx { ref meta, .. }) => meta.timeout,
             _ => None,
         }
     }
@@ -287,17 +288,17 @@ impl<R: Read> TransferTx<R> {
     }
 
     fn read_step(&mut self) -> Result<Packet, Packet> {
-        let mut v = Vec::with_capacity(self.blocksize as usize);
+        let mut v = Vec::with_capacity(self.meta.blocksize as usize);
         if self.fread
             .by_ref()
-            .take(u64::from(self.blocksize))
+            .take(u64::from(self.meta.blocksize))
             .read_to_end(&mut v)
             .is_err()
         {
             return Err(ErrorCode::NotDefined.into());
         }
 
-        self.sent_final = v.len() < self.blocksize as usize;
+        self.sent_final = v.len() < self.meta.blocksize as usize;
         self.expected_block_num = self.expected_block_num.wrapping_add(1);
         Ok(Packet::DATA {
             block_num: self.expected_block_num,
