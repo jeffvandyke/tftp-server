@@ -869,7 +869,7 @@ fn policy_refuse_file_write_outside_cwd() {
 }
 
 #[test]
-fn option_timeout() {
+fn option_timeout_wrq() {
     let (mut server, file, mut file_bytes) = wrq_fixture_early_termination(1234);
     let (xfer, res) = server.rx_initial(Packet::WRQ {
         filename: file,
