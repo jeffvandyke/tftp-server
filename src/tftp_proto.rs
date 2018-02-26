@@ -64,8 +64,10 @@ impl Default for FSAdapter {
     }
 }
 
+#[derive(Debug)]
 struct TransferMeta {
     blocksize: u16,
+    timeout: Option<u8>,
 }
 
 /// The TFTP protocol and filesystem usage implementation,
@@ -114,10 +116,14 @@ impl<IO: IOAdapter> TftpServerProto<IO> {
         }
         let file = Path::new(&filename);
 
-        let mut meta = TransferMeta { blocksize: 512 };
+        let mut meta = TransferMeta {
+            blocksize: 512,
+            timeout: None,
+        };
         for opt in &options {
             match *opt {
                 TftpOption::Blocksize(size) => meta.blocksize = size,
+                TftpOption::TimeoutSecs(secs) => meta.timeout = Some(secs),
                 _ => {}
             }
         }
@@ -154,7 +160,7 @@ pub enum Transfer<IO: IOAdapter> {
 pub struct TransferRx<W: Write> {
     fwrite: W,
     expected_block_num: u16,
-    blocksize: u16,
+    meta: TransferMeta,
 }
 
 #[derive(Debug)]
@@ -197,7 +203,7 @@ impl<IO: IOAdapter> Transfer<IO> {
         let xfer = TransferRx {
             fwrite,
             expected_block_num: 1,
-            blocksize: meta.blocksize,
+            meta,
         };
 
         let packet = if options.is_empty() {
@@ -213,6 +219,15 @@ impl<IO: IOAdapter> Transfer<IO> {
         match *self {
             Transfer::Complete => true,
             _ => false,
+        }
+    }
+
+    /// Returns the timeout negotiated via option for this transfer,
+    /// or NULL if the server default should be used
+    pub fn timeout_secs(&self) -> Option<u8> {
+        match *self {
+            Transfer::Rx(TransferRx { ref meta, .. }) => meta.timeout,
+            _ => None,
         }
     }
 
@@ -303,7 +318,7 @@ impl<W: Write> TransferRx<W> {
                 return Done(Some(ErrorCode::NotDefined.into()));
             }
             self.expected_block_num = block_num.wrapping_add(1);
-            if data.len() < self.blocksize as usize {
+            if data.len() < self.meta.blocksize as usize {
                 Done(Some(Packet::ACK(block_num)))
             } else {
                 Reply(Packet::ACK(block_num))

@@ -457,6 +457,7 @@ fn wrq_small_file_ack_end() {
     assert_eq!(res, Ok(Packet::ACK(0)));
     let mut xfer = xfer.unwrap();
     assert!(!xfer.is_done());
+    assert_eq!(xfer.timeout_secs(), None);
     assert_eq!(
         xfer.rx(Packet::DATA {
             block_num: 1,
@@ -865,6 +866,24 @@ fn policy_refuse_file_write_outside_cwd() {
         proxy.create_new("/boo/han".as_ref()),
         Err(ref e) if e.kind() == io::ErrorKind::PermissionDenied
     );
+}
+
+#[test]
+fn option_timeout() {
+    let (mut server, file, mut file_bytes) = wrq_fixture_early_termination(1234);
+    let (xfer, res) = server.rx_initial(Packet::WRQ {
+        filename: file,
+        mode: Octet,
+        options: vec![TftpOption::TimeoutSecs(5)],
+    });
+    assert_eq!(
+        res,
+        Ok(Packet::OACK {
+            options: vec![TftpOption::TimeoutSecs(5)],
+        })
+    );
+    let mut xfer = xfer.unwrap();
+    assert_eq!(xfer.timeout_secs(), Some(5));
 }
 
 // TODO: maybe switch tests to use paths ?
