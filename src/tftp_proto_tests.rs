@@ -695,8 +695,8 @@ struct FailIO {
 impl IOAdapter for FailIO {
     type R = Failer;
     type W = Failer;
-    fn open_read(&self, _: &Path) -> io::Result<Self::R> {
-        Ok(Failer { bytes: self.bytes })
+    fn open_read(&self, _: &Path) -> io::Result<(Self::R, Option<u64>)> {
+        Ok((Failer { bytes: self.bytes }, None))
     }
     fn create_new(&mut self, _: &Path) -> io::Result<Self::W> {
         Ok(Failer { bytes: self.bytes })
@@ -774,6 +774,7 @@ fn policy_readonly() {
         proxy
             .open_read(file_a.as_ref())
             .unwrap()
+            .0
             .read_to_end(&mut v)
             .unwrap(),
         amt
@@ -905,6 +906,22 @@ fn option_timeout_wrq() {
     assert_eq!(xfer.timeout_secs(), Some(5));
 }
 
+#[test]
+fn option_tsize_rrq() {
+    let (mut server, file, file_bytes) = rrq_fixture(1234);
+    let (xfer, res) = server.rx_initial(Packet::RRQ {
+        filename: file,
+        mode: Octet,
+        options: vec![TftpOption::TransferSize(0)],
+    });
+    assert_eq!(
+        res,
+        Ok(Packet::OACK {
+            options: vec![TftpOption::TransferSize(1234)],
+        })
+    );
+}
+
 // TODO: maybe switch tests to use paths ?
 struct TestIoFactory {
     server_present_files: HashSet<String>,
@@ -923,11 +940,11 @@ impl TestIoFactory {
 impl IOAdapter for TestIoFactory {
     type R = GeneratingReader;
     type W = ExpectingWriter;
-    fn open_read(&self, file: &Path) -> io::Result<Self::R> {
+    fn open_read(&self, file: &Path) -> io::Result<(Self::R, Option<u64>)> {
         let filename = file.to_str().expect("not a valid string");
         if self.server_present_files.contains(filename) {
             let size = *self.possible_files.get(filename).unwrap();
-            Ok(GeneratingReader::new(filename, size))
+            Ok((GeneratingReader::new(filename, size), Some(size as u64)))
         } else if !self.possible_files.contains_key(filename) {
             Err(io::Error::new(
                 io::ErrorKind::PermissionDenied,

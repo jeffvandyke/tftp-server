@@ -37,7 +37,7 @@ pub enum TftpError {
 pub trait IOAdapter {
     type R: Read + Sized;
     type W: Write + Sized;
-    fn open_read(&self, file: &Path) -> io::Result<Self::R>;
+    fn open_read(&self, file: &Path) -> io::Result<(Self::R, Option<u64>)>;
     fn create_new(&mut self, file: &Path) -> io::Result<Self::W>;
 }
 
@@ -47,8 +47,10 @@ pub struct FSAdapter;
 impl IOAdapter for FSAdapter {
     type R = File;
     type W = File;
-    fn open_read(&self, file: &Path) -> io::Result<File> {
-        File::open(file)
+    fn open_read(&self, file: &Path) -> io::Result<(File, Option<u64>)> {
+        let f = File::open(file)?;
+        let len = f.metadata().ok().map(|meta| meta.len());
+        Ok((f, len))
     }
     fn create_new(&mut self, file: &Path) -> io::Result<File> {
         fs::OpenOptions::new()
@@ -95,7 +97,7 @@ impl<IO: IOAdapter> TftpServerProto<IO> {
         &mut self,
         packet: Packet,
     ) -> (Option<Transfer<IO>>, Result<Packet, TftpError>) {
-        let (filename, mode, options, is_write) = match packet {
+        let (filename, mode, mut options, is_write) = match packet {
             Packet::RRQ {
                 filename,
                 mode,
@@ -120,13 +122,22 @@ impl<IO: IOAdapter> TftpServerProto<IO> {
             blocksize: 512,
             timeout: None,
         };
-        for opt in &options {
-            match *opt {
-                TftpOption::Blocksize(size) => meta.blocksize = size,
-                TftpOption::TimeoutSecs(secs) => meta.timeout = Some(secs),
-                _ => {}
-            }
-        }
+        let mut tsize = None;
+
+        let mut options = options
+            .drain(..)
+            .filter_map(|opt| {
+                match opt {
+                    TftpOption::Blocksize(size) => meta.blocksize = size,
+                    TftpOption::TimeoutSecs(secs) => meta.timeout = Some(secs),
+                    TftpOption::TransferSize(size) => {
+                        tsize = Some(size);
+                        return None;
+                    }
+                }
+                Some(opt)
+            })
+            .collect::<Vec<_>>();
 
         let (xfer, packet) = if is_write {
             let fwrite = match self.io_proxy.create_new(file) {
@@ -136,10 +147,14 @@ impl<IO: IOAdapter> TftpServerProto<IO> {
 
             Transfer::<IO>::new_write(fwrite, meta, options)
         } else {
-            let fread = match self.io_proxy.open_read(file) {
+            let (fread, len) = match self.io_proxy.open_read(file) {
                 Ok(f) => f,
                 _ => return (None, Ok(ErrorCode::FileNotFound.into())),
             };
+
+            if let (Some(_), Some(file_size)) = (tsize, len) {
+                options.push(TftpOption::TransferSize(file_size));
+            }
 
             Transfer::<IO>::new_read(fread, meta, options)
         };
@@ -356,7 +371,7 @@ impl<IO: IOAdapter> IOPolicyProxy<IO> {
 impl<IO: IOAdapter> IOAdapter for IOPolicyProxy<IO> {
     type R = IO::R;
     type W = IO::W;
-    fn open_read(&self, file: &Path) -> io::Result<Self::R> {
+    fn open_read(&self, file: &Path) -> io::Result<(Self::R, Option<u64>)> {
         if file.is_absolute() || file.components().any(|c| match c {
             Component::RootDir | Component::ParentDir => true,
             _ => false,
