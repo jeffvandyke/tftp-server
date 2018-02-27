@@ -112,8 +112,8 @@ mod tests {
             Some(TftpOption::TimeoutSecs(8))
         );
         assert_eq!(
-            TftpOption::try_from("TIMEOUT", "0"),
-            Some(TftpOption::TimeoutSecs(0))
+            TftpOption::try_from("TIMEOUT", "3"),
+            Some(TftpOption::TimeoutSecs(3))
         );
     }
 
