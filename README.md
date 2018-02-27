@@ -16,7 +16,7 @@ Building and running the server
 To build the server, simply run `cargo build`. Once compiled you can run the server without arguments, in which case it will pick a random port on the loopback address and serve from the current directory:
 
 ```
-$ ./target/debug/tftp_server_bin
+$ ./target/debug/tftp_server
 Server created at address: V4(127.0.0.1:61204)
 ```
 
@@ -25,20 +25,20 @@ In this example, the port number picked was 61204.
 You can also explicitly specify the address (and optionally the port) on which it will listen
 
 ```
-$ ./target/debug/tftp_server_bin --address 192.168.0.54
+$ ./target/debug/tftp_server --address 192.168.0.54
 Server created at address: V4(192.168.0.54:43604)
 ```
 
 or
 
 ```
-$ ./target/debug/tftp_server_bin --address 192.168.0.54:35000
+$ ./target/debug/tftp_server --address 192.168.0.54:35000
 Server created at address: V4(192.168.0.54:35000)
 ```
 
 If the server cannot bind to the given address:port (or if it cannot find a random port for the address) then it will panic with an IoError.
 ```
-$ ./target/debug/tftp_server_bin --address 127.0.0.1:20
+$ ./target/debug/tftp_server --address 127.0.0.1:20
 thread 'main' panicked at 'Error creating server: IoError(Error { repr: Os { code: 13, message: "Permission denied" } })', ../src/libcore/result.rs:799
 note: Run with `RUST_BACKTRACE=1` for a backtrace.
 ```
@@ -72,7 +72,7 @@ You can also run the server with logging enabled. To do this add `RUST_LOG=tftp_
 For example:
 
 ```
-$ RUST_LOG=tftp_server=info ./target/debug/tftp_server_bin
+$ RUST_LOG=tftp_server=info ./target/debug/tftp_server
 ```
 
 This will run the server with logging enabled so that you can inspect the program's behavior.

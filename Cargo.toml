@@ -25,7 +25,7 @@ name = "tftp_server"
 path = "src/lib.rs"
 
 [[bin]]
-name = "tftp_server_bin"
+name = "tftp_server"
 path = "src/bin.rs"
 
 [[test]]
