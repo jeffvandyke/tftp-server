@@ -4,6 +4,7 @@ use std::iter::Take;
 use std::path::Path;
 use packet::{ErrorCode, Packet, TftpOption};
 use tftp_proto::*;
+use std::time::Duration;
 
 use tftp_proto::TftpResult::{Done, Repeat, Reply};
 use packet::TransferMode::*;
@@ -130,7 +131,7 @@ fn rrq_small_file_ack_end() {
     );
     let mut xfer = xfer.unwrap();
     assert!(!xfer.is_done());
-    assert_eq!(xfer.timeout_secs(), None);
+    assert_eq!(xfer.timeout(), None);
     assert_eq!(xfer.rx(Packet::ACK(1)), Done(None));
     assert!(xfer.is_done());
     assert_eq!(xfer.rx(Packet::ACK(0)), Done(None));
@@ -458,7 +459,7 @@ fn wrq_small_file_ack_end() {
     assert_eq!(res, Ok(Packet::ACK(0)));
     let mut xfer = xfer.unwrap();
     assert!(!xfer.is_done());
-    assert_eq!(xfer.timeout_secs(), None);
+    assert_eq!(xfer.timeout(), None);
     assert_eq!(
         xfer.rx(Packet::DATA {
             block_num: 1,
@@ -889,7 +890,7 @@ fn option_timeout_rrq() {
         })
     );
     let mut xfer = xfer.unwrap();
-    assert_eq!(xfer.timeout_secs(), Some(4));
+    assert_eq!(xfer.timeout(), Some(Duration::from_secs(4)));
 }
 
 #[test]
@@ -907,7 +908,7 @@ fn option_timeout_wrq() {
         })
     );
     let mut xfer = xfer.unwrap();
-    assert_eq!(xfer.timeout_secs(), Some(5));
+    assert_eq!(xfer.timeout(), Some(Duration::from_secs(5)));
 }
 
 #[test]

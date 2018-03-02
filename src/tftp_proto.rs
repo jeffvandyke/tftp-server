@@ -2,6 +2,7 @@ use std::io::{self, Read, Write};
 use std::fs::{self, File};
 use std::path::{Component, Path, PathBuf};
 use packet::{ErrorCode, Packet, TftpOption};
+use std::time::Duration;
 
 #[derive(Debug, PartialEq)]
 pub enum TftpResult {
@@ -246,10 +247,10 @@ impl<IO: IOAdapter> Transfer<IO> {
 
     /// Returns the timeout negotiated via option for this transfer,
     /// or NULL if the server default should be used
-    pub fn timeout_secs(&self) -> Option<u8> {
+    pub fn timeout(&self) -> Option<Duration> {
         match *self {
             Transfer::Rx(TransferRx { ref meta, .. })
-            | Transfer::Tx(TransferTx { ref meta, .. }) => meta.timeout,
+            | Transfer::Tx(TransferTx { ref meta, .. }) => meta.timeout.map(|s| Duration::from_secs(s as u64)),
             _ => None,
         }
     }
