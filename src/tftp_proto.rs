@@ -250,7 +250,9 @@ impl<IO: IOAdapter> Transfer<IO> {
     pub fn timeout(&self) -> Option<Duration> {
         match *self {
             Transfer::Rx(TransferRx { ref meta, .. })
-            | Transfer::Tx(TransferTx { ref meta, .. }) => meta.timeout.map(|s| Duration::from_secs(s as u64)),
+            | Transfer::Tx(TransferTx { ref meta, .. }) => {
+                meta.timeout.map(|s| Duration::from_secs(s as u64))
+            }
             _ => None,
         }
     }

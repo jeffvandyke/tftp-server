@@ -200,7 +200,8 @@ impl<IO: IOAdapter + Default> TftpServerImpl<IO> {
     fn reset_timeout(&mut self, token: &Token) -> Result<()> {
         if let Some(ref mut conn) = self.connections.get_mut(token) {
             self.timer.cancel_timeout(&conn.timeout);
-            conn.timeout = self.timer.set_timeout(conn.transfer.timeout().unwrap_or(self.timeout), *token)?;
+            conn.timeout = self.timer
+                .set_timeout(conn.transfer.timeout().unwrap_or(self.timeout), *token)?;
         }
         Ok(())
     }
@@ -214,7 +215,8 @@ impl<IO: IOAdapter + Default> TftpServerImpl<IO> {
         packet: Packet,
         remote: SocketAddr,
     ) -> Result<()> {
-        let timeout = self.timer.set_timeout(transfer.timeout().unwrap_or(self.timeout), token)?;
+        let timeout = self.timer
+            .set_timeout(transfer.timeout().unwrap_or(self.timeout), token)?;
         self.poll.register(
             &socket,
             token,
