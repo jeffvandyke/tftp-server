@@ -38,7 +38,7 @@ pub trait IOAdapter {
     type R: Read + Sized;
     type W: Write + Sized;
     fn open_read(&self, file: &Path) -> io::Result<(Self::R, Option<u64>)>;
-    fn create_new(&mut self, file: &Path) -> io::Result<Self::W>;
+    fn create_new(&mut self, file: &Path, len: Option<u64>) -> io::Result<Self::W>;
 }
 
 /// Provides a simple, default implementation for `IOAdapter`.
@@ -52,11 +52,15 @@ impl IOAdapter for FSAdapter {
         let len = f.metadata().ok().map(|meta| meta.len());
         Ok((f, len))
     }
-    fn create_new(&mut self, file: &Path) -> io::Result<File> {
-        fs::OpenOptions::new()
+    fn create_new(&mut self, file: &Path, len: Option<u64>) -> io::Result<File> {
+        let f = fs::OpenOptions::new()
             .write(true)
             .create_new(true)
-            .open(file)
+            .open(file)?;
+        if let Some(l) = len {
+            f.set_len(l)?;
+        }
+        Ok(f)
     }
 }
 
@@ -132,7 +136,10 @@ impl<IO: IOAdapter> TftpServerProto<IO> {
                     TftpOption::TimeoutSecs(secs) => meta.timeout = Some(secs),
                     TftpOption::TransferSize(size) => {
                         tsize = Some(size);
-                        return None;
+                        if !is_write {
+                            // for read take out the transfer size initially, it needs changing
+                            return None;
+                        }
                     }
                 }
                 Some(opt)
@@ -140,7 +147,7 @@ impl<IO: IOAdapter> TftpServerProto<IO> {
             .collect::<Vec<_>>();
 
         let (xfer, packet) = if is_write {
-            let fwrite = match self.io_proxy.create_new(file) {
+            let fwrite = match self.io_proxy.create_new(file, tsize) {
                 Ok(f) => f,
                 _ => return (None, Ok(ErrorCode::FileExists.into())),
             };
@@ -388,7 +395,7 @@ impl<IO: IOAdapter> IOAdapter for IOPolicyProxy<IO> {
         }
     }
 
-    fn create_new(&mut self, file: &Path) -> io::Result<Self::W> {
+    fn create_new(&mut self, file: &Path, len: Option<u64>) -> io::Result<Self::W> {
         if self.policy.readonly || file.is_absolute() || file.components().any(|c| match c {
             Component::RootDir | Component::ParentDir => true,
             _ => false,
@@ -399,9 +406,9 @@ impl<IO: IOAdapter> IOAdapter for IOPolicyProxy<IO> {
             ))
         } else if let Some(ref path) = self.policy.path {
             let full = path.clone().join(file);
-            self.io.create_new(&full)
+            self.io.create_new(&full, len)
         } else {
-            self.io.create_new(file)
+            self.io.create_new(file, len)
         }
     }
 }

@@ -698,7 +698,7 @@ impl IOAdapter for FailIO {
     fn open_read(&self, _: &Path) -> io::Result<(Self::R, Option<u64>)> {
         Ok((Failer { bytes: self.bytes }, None))
     }
-    fn create_new(&mut self, _: &Path) -> io::Result<Self::W> {
+    fn create_new(&mut self, _: &Path, _: Option<u64>) -> io::Result<Self::W> {
         Ok(Failer { bytes: self.bytes })
     }
 }
@@ -782,7 +782,7 @@ fn policy_readonly() {
     assert_eq!(v.len(), amt);
 
     let mut proxy = proxy;
-    if let Ok(_) = proxy.create_new(file_b.as_ref()) {
+    if let Ok(_) = proxy.create_new(file_b.as_ref(), None) {
         panic!("create should not succeed");
     }
 }
@@ -809,8 +809,12 @@ fn policy_remap_directory() {
     assert!(proxy.open_read("the_new_path/file_a".as_ref()).is_err());
     assert!(proxy.open_read("file_a".as_ref()).is_ok());
 
-    assert!(proxy.create_new("the_new_path/file_b".as_ref()).is_err());
-    assert!(proxy.create_new("file_b".as_ref()).is_ok());
+    assert!(
+        proxy
+            .create_new("the_new_path/file_b".as_ref(), None)
+            .is_err()
+    );
+    assert!(proxy.create_new("file_b".as_ref(), None).is_ok());
 }
 
 #[test]
@@ -861,11 +865,11 @@ fn policy_refuse_file_write_outside_cwd() {
     );
 
     assert_matches!(
-        proxy.create_new("./../w_file_a".as_ref()),
+        proxy.create_new("./../w_file_a".as_ref(), None),
         Err(ref e) if e.kind() == io::ErrorKind::PermissionDenied
     );
     assert_matches!(
-        proxy.create_new("/boo/han".as_ref()),
+        proxy.create_new("/boo/han".as_ref(), None),
         Err(ref e) if e.kind() == io::ErrorKind::PermissionDenied
     );
 }
@@ -922,6 +926,23 @@ fn option_tsize_rrq() {
     );
 }
 
+#[test]
+fn option_tsize_wrq() {
+    // TODO: make test actually check that transfer size is passed down
+    let (mut server, file, file_bytes) = wrq_fixture_early_termination(1234);
+    let (xfer, res) = server.rx_initial(Packet::WRQ {
+        filename: file,
+        mode: Octet,
+        options: vec![TftpOption::TransferSize(1234)],
+    });
+    assert_eq!(
+        res,
+        Ok(Packet::OACK {
+            options: vec![TftpOption::TransferSize(1234)],
+        })
+    );
+}
+
 // TODO: maybe switch tests to use paths ?
 struct TestIoFactory {
     server_present_files: HashSet<String>,
@@ -957,7 +978,7 @@ impl IOAdapter for TestIoFactory {
             ))
         }
     }
-    fn create_new(&mut self, file: &Path) -> io::Result<ExpectingWriter> {
+    fn create_new(&mut self, file: &Path, len: Option<u64>) -> io::Result<ExpectingWriter> {
         let filename = file.to_str().expect("not a valid string");
         if self.server_present_files.contains(filename) {
             Err(io::Error::new(
@@ -972,6 +993,9 @@ impl IOAdapter for TestIoFactory {
         } else {
             self.server_present_files.insert(filename.into());
             let size = *self.possible_files.get(filename).unwrap();
+            if let Some(l) = len {
+                assert_eq!(l, size as u64, "given and expected sizes don't match");
+            }
             Ok(ExpectingWriter::new(
                 filename,
                 size,
