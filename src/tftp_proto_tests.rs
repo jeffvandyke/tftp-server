@@ -1008,6 +1008,48 @@ impl IOAdapter for TestIoFactory {
     }
 }
 
+#[test]
+fn rrq_timeout_repeat_end() {
+    let (mut server, file, _) = rrq_fixture(512 * 3 + 123);
+    let (xfer, res) = server.rx_initial(Packet::RRQ {
+        filename: file,
+        mode: Octet,
+        options: vec![],
+    });
+    assert_matches!(res, Ok(Packet::DATA { .. }));
+    let mut xfer = xfer.unwrap();
+    assert_eq!(xfer.timeout_expired(), Repeat);
+    assert_eq!(xfer.timeout_expired(), Done(None));
+    assert!(xfer.is_done());
+}
+
+#[test]
+fn rrq_timeout_repeat_ack_repeat() {
+    let (mut server, file, mut file_bytes) = rrq_fixture(512 * 3 + 123);
+    let (xfer, res) = server.rx_initial(Packet::RRQ {
+        filename: file,
+        mode: Octet,
+        options: vec![],
+    });
+    assert_eq!(
+        res,
+        Ok(Packet::DATA {
+            block_num: 1,
+            data: file_bytes.gen(512),
+        })
+    );
+    let mut xfer = xfer.unwrap();
+    assert_eq!(xfer.timeout_expired(), Repeat);
+    assert_eq!(
+        xfer.rx(Packet::ACK(1)),
+        Reply(Packet::DATA {
+            block_num: 2,
+            data: file_bytes.gen(512),
+        })
+    );
+    assert_eq!(xfer.timeout_expired(), Repeat);
+}
+
 #[derive(Debug)]
 struct ByteGen {
     crt: u8,

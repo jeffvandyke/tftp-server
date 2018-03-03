@@ -75,6 +75,7 @@ impl Default for FSAdapter {
 struct TransferMeta {
     blocksize: u16,
     timeout: Option<u8>,
+    timed_out: bool,
 }
 
 /// The TFTP protocol and filesystem usage implementation,
@@ -126,6 +127,7 @@ impl<IO: IOAdapter> TftpServerProto<IO> {
         let mut meta = TransferMeta {
             blocksize: 512,
             timeout: None,
+            timed_out: false,
         };
         let mut tsize = None;
 
@@ -245,6 +247,26 @@ impl<IO: IOAdapter> Transfer<IO> {
         }
     }
 
+    /// Call this to indicate that the timeout since the last received packe has expired
+    /// This may return some packets to (re)send or may terminate the transfer
+    pub fn timeout_expired(&mut self) -> TftpResult {
+        let result = match *self {
+            Transfer::Rx(TransferRx{ref mut meta, ..}) | Transfer::Tx(TransferTx{ref mut meta, ..}) => {
+                if meta.timed_out {
+                    Done(None)
+                } else {
+                    meta.timed_out = true;
+                    Repeat
+                }
+            }
+            _ => Done(None),
+        };
+        if let Done(_) = result {
+            *self = Transfer::Complete;
+        };
+        result
+    }
+
     /// Returns the timeout negotiated via option for this transfer,
     /// or NULL if the server default should be used
     pub fn timeout(&self) -> Option<Duration> {
@@ -305,6 +327,7 @@ impl<R: Read> TransferTx<R> {
         } else if self.sent_final {
             Done(None)
         } else {
+            self.meta.timed_out = false;
             match self.read_step() {
                 Ok(p) => Reply(p),
                 Err(p) => Done(Some(p)),
