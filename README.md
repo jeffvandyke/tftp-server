@@ -101,3 +101,4 @@ TODOs
 * [ ] redo integration tests to run them with harness
 * [ ] make proto tests more orthogonal
 * [ ] test that transfer size is enforced on Rx
+* [ ] maybe eventually split off proto handling into its own crate
