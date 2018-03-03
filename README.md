@@ -100,3 +100,4 @@ TODOs
 * [ ] redo packets as in-place buffer references to avoid copying memory
 * [ ] redo integration tests to run them with harness
 * [ ] make proto tests more orthogonal
+* [ ] test that transfer size is enforced on Rx
