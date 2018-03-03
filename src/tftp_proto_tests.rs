@@ -1050,6 +1050,27 @@ fn rrq_timeout_repeat_ack_repeat() {
     assert_eq!(xfer.timeout_expired(), Repeat);
 }
 
+#[test]
+fn wrq_timeout_repeat_ack_repeat() {
+    let (mut server, file, mut file_bytes) = wrq_fixture_early_termination(512 * 3 + 123);
+    let (xfer, res) = server.rx_initial(Packet::WRQ {
+        filename: file,
+        mode: Octet,
+        options: vec![],
+    });
+    assert_eq!(res, Ok(Packet::ACK(0)));
+    let mut xfer = xfer.unwrap();
+    assert_eq!(xfer.timeout_expired(), Repeat);
+    assert_eq!(
+        xfer.rx(Packet::DATA {
+            block_num: 1,
+            data: file_bytes.gen(512),
+        }),
+        Reply(Packet::ACK(1))
+    );
+    assert_eq!(xfer.timeout_expired(), Repeat);
+}
+
 #[derive(Debug)]
 struct ByteGen {
     crt: u8,

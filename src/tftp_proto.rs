@@ -363,6 +363,7 @@ impl<W: Write> TransferRx<W> {
                 msg: "Data packet lost".to_owned(),
             }))
         } else {
+            self.meta.timed_out = false;
             if self.fwrite.write_all(data).is_err() {
                 return Done(Some(ErrorCode::NotDefined.into()));
             }
