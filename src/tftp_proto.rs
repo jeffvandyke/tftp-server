@@ -251,7 +251,8 @@ impl<IO: IOAdapter> Transfer<IO> {
     /// This may return some packets to (re)send or may terminate the transfer
     pub fn timeout_expired(&mut self) -> TftpResult {
         let result = match *self {
-            Transfer::Rx(TransferRx{ref mut meta, ..}) | Transfer::Tx(TransferTx{ref mut meta, ..}) => {
+            Transfer::Rx(TransferRx { ref mut meta, .. })
+            | Transfer::Tx(TransferTx { ref mut meta, .. }) => {
                 if meta.timed_out {
                     Done(None)
                 } else {
