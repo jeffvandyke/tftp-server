@@ -61,7 +61,7 @@ TFTP Protocol Options & Extensions
 The following TFTP extension RFCs are implemented:
 * [RFC 2347: TFTP Option Extension](https://tools.ietf.org/html/rfc2347)
 * [RFC 2348: TFTP Blocksize Option](https://tools.ietf.org/html/rfc2348)
-* (Not yet implemented) [RFC 2349: TFTP Timeout Interval and Transfer Size Options](https://tools.ietf.org/html/rfc2349)
+* [RFC 2349: TFTP Timeout Interval and Transfer Size Options](https://tools.ietf.org/html/rfc2349)
 * (Not yet implemented) [RFC 7440: TFTP Windowsize Option](https://tools.ietf.org/html/rfc7440)
 
 
