@@ -877,7 +877,7 @@ fn policy_refuse_file_write_outside_cwd() {
 
 #[test]
 fn option_timeout_rrq() {
-    let (mut server, file, mut file_bytes) = rrq_fixture(1234);
+    let (mut server, file, _) = rrq_fixture(1234);
     let (xfer, res) = server.rx_initial(Packet::RRQ {
         filename: file,
         mode: Octet,
@@ -889,13 +889,13 @@ fn option_timeout_rrq() {
             options: vec![TftpOption::TimeoutSecs(4)],
         })
     );
-    let mut xfer = xfer.unwrap();
+    let xfer = xfer.unwrap();
     assert_eq!(xfer.timeout(), Some(Duration::from_secs(4)));
 }
 
 #[test]
 fn option_timeout_wrq() {
-    let (mut server, file, mut file_bytes) = wrq_fixture_early_termination(1234);
+    let (mut server, file, _) = wrq_fixture_early_termination(1234);
     let (xfer, res) = server.rx_initial(Packet::WRQ {
         filename: file,
         mode: Octet,
@@ -907,13 +907,13 @@ fn option_timeout_wrq() {
             options: vec![TftpOption::TimeoutSecs(5)],
         })
     );
-    let mut xfer = xfer.unwrap();
+    let xfer = xfer.unwrap();
     assert_eq!(xfer.timeout(), Some(Duration::from_secs(5)));
 }
 
 #[test]
 fn option_tsize_rrq() {
-    let (mut server, file, file_bytes) = rrq_fixture(1234);
+    let (mut server, file, _) = rrq_fixture(1234);
     let (xfer, res) = server.rx_initial(Packet::RRQ {
         filename: file,
         mode: Octet,
@@ -925,12 +925,13 @@ fn option_tsize_rrq() {
             options: vec![TftpOption::TransferSize(1234)],
         })
     );
+    assert_matches!(xfer.as_ref().map(Transfer::is_done), Some(false));
 }
 
 #[test]
 fn option_tsize_wrq() {
     // TODO: make test actually check that transfer size is passed down
-    let (mut server, file, file_bytes) = wrq_fixture_early_termination(1234);
+    let (mut server, file, _) = wrq_fixture_early_termination(1234);
     let (xfer, res) = server.rx_initial(Packet::WRQ {
         filename: file,
         mode: Octet,
@@ -942,6 +943,7 @@ fn option_tsize_wrq() {
             options: vec![TftpOption::TransferSize(1234)],
         })
     );
+    assert_matches!(xfer.as_ref().map(Transfer::is_done), Some(false));
 }
 
 // TODO: maybe switch tests to use paths ?
