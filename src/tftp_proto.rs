@@ -144,6 +144,7 @@ impl<IO: IOAdapter> TftpServerProto<IO> {
                             return None;
                         }
                     }
+                    TftpOption::WindowSize(_size) => {}
                 }
                 Some(opt)
             })

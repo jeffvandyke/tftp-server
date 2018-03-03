@@ -8,6 +8,7 @@ pub enum TftpOption {
     Blocksize(u16),
     TransferSize(u64),
     TimeoutSecs(u8),
+    WindowSize(u16),
 }
 
 impl TftpOption {
@@ -22,6 +23,9 @@ impl TftpOption {
             }
             TimeoutSecs(t) => {
                 write!(buf, "timeout\0{}\0", t)?;
+            }
+            WindowSize(t) => {
+                write!(buf, "windowsize\0{}\0", t)?;
             }
         };
         Ok(())
@@ -41,6 +45,11 @@ impl TftpOption {
         } else if "tsize".eq_ignore_ascii_case(name) {
             let val = value.parse().ok()?;
             return Some(TftpOption::TransferSize(val));
+        } else if "windowsize".eq_ignore_ascii_case(name) {
+            let val = value.parse().ok()?;
+            if val > 0 {
+                return Some(TftpOption::WindowSize(val));
+            }
         }
         None
     }
@@ -136,5 +145,38 @@ mod tests {
         let mut v = vec![];
         TftpOption::TimeoutSecs(4).write_to(&mut v).unwrap();
         assert_eq!(v, b"timeout\04\0");
+    }
+
+    #[test]
+    fn windowsize_parse() {
+        assert_eq!(
+            TftpOption::try_from("windowsize", "8"),
+            Some(TftpOption::WindowSize(8))
+        );
+        assert_eq!(
+            TftpOption::try_from("WINDOWSIZE", "3"),
+            Some(TftpOption::WindowSize(3))
+        );
+    }
+
+    #[test]
+    fn windowsize_bounds() {
+        assert_eq!(
+            TftpOption::try_from("windowsize", "65535"),
+            Some(TftpOption::WindowSize(65_535))
+        );
+        assert_eq!(TftpOption::try_from("WINDOWSIZE", "65536"), None);
+        assert_eq!(
+            TftpOption::try_from("windowsize", "1"),
+            Some(TftpOption::WindowSize(1))
+        );
+        assert_eq!(TftpOption::try_from("WINDOWSIZE", "0"), None);
+    }
+
+    #[test]
+    fn windowsize_write() {
+        let mut v = vec![];
+        TftpOption::WindowSize(4).write_to(&mut v).unwrap();
+        assert_eq!(v, b"windowsize\04\0");
     }
 }
