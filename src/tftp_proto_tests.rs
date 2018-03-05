@@ -1071,6 +1071,70 @@ fn wrq_timeout_repeat_ack_repeat() {
     assert_eq!(xfer.timeout_expired(), Repeat);
 }
 
+macro_rules! result_content {
+    ( $e:expr => $pat:pat => $code:expr, $value:expr ) => {
+        if let $pat = $e {
+            let processed = $code;
+            assert_eq!(processed, $value);
+        } else {
+            panic!("assertion failed: `{:?}` does not match `{} if {}`",
+                $e, stringify!($pat), stringify!($cond))
+        }
+    };
+    ( $e:expr => $pat:pat => $code:expr, $value:expr, $($arg:tt)* ) => {
+        if let $pat = $e {
+            let processed = $code;
+            assert_eq!(processed, $value, $($arg)*);
+        } else {
+            panic!("assertion failed: `{:?}` does not match `{} if {}`",
+                $e, stringify!($pat), stringify!($cond))
+        }
+    };
+}
+
+#[test]
+fn rrq_windowsize_2_ok() {
+    let (mut server, file, mut file_bytes) = rrq_fixture(512 * 3 + 123 /*4 blocks*/);
+    let (xfer, res) = server.rx_initial(Packet::RRQ {
+        filename: file,
+        mode: Octet,
+        options: vec![TftpOption::WindowSize(2)],
+    });
+    assert_eq!(
+        res,
+        Ok(Packet::OACK {
+            options: vec![TftpOption::WindowSize(2)],
+        })
+    );
+    let mut xfer = xfer.unwrap();
+
+    let p_1 = Packet::DATA {
+        block_num: 1,
+        data: file_bytes.gen(512),
+    };
+    let p_2 = Packet::DATA {
+        block_num: 2,
+        data: file_bytes.gen(512),
+    };
+    result_content!(
+        xfer.rx2(Packet::ACK(0)) => Reply(packs) => packs.collect::<Vec<_>>(),
+        vec![p_1, p_2]
+    );
+
+    /*
+    let mut xfer = xfer.unwrap();
+    assert_eq!(xfer.timeout_expired(), Repeat);
+    assert_eq!(
+        xfer.rx(Packet::ACK(1)),
+        Reply(Packet::DATA {
+            block_num: 2,
+            data: file_bytes.gen(512),
+        })
+    );
+    assert_eq!(xfer.timeout_expired(), Repeat);
+*/
+}
+
 #[derive(Debug)]
 struct ByteGen {
     crt: u8,

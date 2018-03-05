@@ -5,22 +5,38 @@ use packet::{ErrorCode, Packet, TftpOption};
 use std::time::Duration;
 
 #[derive(Debug, PartialEq)]
-pub enum TftpResult {
+pub enum TftpResult<P> {
     /// Indicates the packet should be sent back to the client,
     /// and the transfer may continue
-    Reply(Packet),
+    Reply(P),
 
     /// Signals the calling code that it should resend the last packet
     Repeat,
 
     /// Indicates that the packet (if any) should be sent back to the client,
     /// and the transfer is considered terminated
-    Done(Option<Packet>),
+    Done(Option<P>),
 
     /// Indicates an error encountered while processing the packet
     Err(TftpError),
 }
 use self::TftpResult::{Done, Repeat, Reply};
+
+// this is temporary, just like the <P> in TftpResult,
+// until we switch everything over to using the iterator
+impl<P> TftpResult<P> {
+    fn map<Q, F>(self, f: F) -> TftpResult<Q>
+    where
+        F: FnOnce(P) -> Q,
+    {
+        match self {
+            Reply(p) => Reply(f(p)),
+            Repeat => Repeat,
+            Done(p) => Done(p.map(f)),
+            TftpResult::Err(e) => TftpResult::Err(e),
+        }
+    }
+}
 
 #[derive(Debug, PartialEq)]
 pub enum TftpError {
@@ -76,12 +92,34 @@ struct TransferMeta {
     blocksize: u16,
     timeout: Option<u8>,
     timed_out: bool,
+    window_size: u16,
 }
 
 /// The TFTP protocol and filesystem usage implementation,
 /// used as backend for a TFTP server
 pub struct TftpServerProto<IO: IOAdapter> {
     io_proxy: IOPolicyProxy<IO>,
+}
+
+#[derive(Debug, PartialEq)]
+pub struct Packets {
+    p: Vec<Packet>,
+}
+
+impl Iterator for Packets {
+    type Item = Packet;
+    fn next(&mut self) -> Option<Self::Item> {
+        self.p.pop()
+    }
+}
+
+impl<T> From<T> for Packets
+where
+    T: Into<Packet>,
+{
+    fn from(p: T) -> Self {
+        Self { p: vec![p.into()] }
+    }
 }
 
 impl<IO: IOAdapter> TftpServerProto<IO> {
@@ -128,6 +166,7 @@ impl<IO: IOAdapter> TftpServerProto<IO> {
             blocksize: 512,
             timeout: None,
             timed_out: false,
+            window_size: 1,
         };
         let mut tsize = None;
 
@@ -144,7 +183,7 @@ impl<IO: IOAdapter> TftpServerProto<IO> {
                             return None;
                         }
                     }
-                    TftpOption::WindowSize(_size) => {}
+                    TftpOption::WindowSize(size) => meta.window_size = size,
                 }
                 Some(opt)
             })
@@ -170,7 +209,7 @@ impl<IO: IOAdapter> TftpServerProto<IO> {
             Transfer::<IO>::new_read(fread, meta, options)
         };
 
-        (xfer, Ok(packet))
+        (xfer, Ok(packet.into()))
     }
 }
 
@@ -250,7 +289,7 @@ impl<IO: IOAdapter> Transfer<IO> {
 
     /// Call this to indicate that the timeout since the last received packe has expired
     /// This may return some packets to (re)send or may terminate the transfer
-    pub fn timeout_expired(&mut self) -> TftpResult {
+    pub fn timeout_expired(&mut self) -> TftpResult<Packet> {
         let result = match *self {
             Transfer::Rx(TransferRx { ref mut meta, .. })
             | Transfer::Tx(TransferTx { ref mut meta, .. }) => {
@@ -286,7 +325,11 @@ impl<IO: IOAdapter> Transfer<IO> {
     /// and all future calls to rx will also return `TftpResult::Done`
     ///
     /// Transfer completion can be checked via `Transfer::is_done()`
-    pub fn rx(&mut self, packet: Packet) -> TftpResult {
+    pub fn rx(&mut self, packet: Packet) -> TftpResult<Packet> {
+        self.rx2(packet).map(|mut p| p.next().unwrap())
+    }
+
+    pub fn rx2(&mut self, packet: Packet) -> TftpResult<Packets> {
         if self.is_done() {
             return Done(None);
         }
@@ -298,15 +341,15 @@ impl<IO: IOAdapter> Transfer<IO> {
                     ref data,
                 },
                 &mut Transfer::Rx(ref mut rx),
-            ) => rx.handle_data(block_num, data),
+            ) => rx.handle_data(block_num, data).map(|p| p.into()),
             (Packet::DATA { .. }, _) | (Packet::ACK(_), _) => {
                 // wrong kind of packet, kill transfer
-                Done(Some(ErrorCode::IllegalTFTP.into()))
+                Done(Some(ErrorCode::IllegalTFTP.into())).map(|p: Packet| p.into())
             }
 
             (Packet::ERROR { .. }, _) => {
                 // receiving an error kills the transfer
-                Done(None)
+                Done(None).map(|p: Packet| p.into())
             }
             _ => TftpResult::Err(TftpError::TransferAlreadyRunning),
         };
@@ -318,22 +361,29 @@ impl<IO: IOAdapter> Transfer<IO> {
 }
 
 impl<R: Read> TransferTx<R> {
-    fn handle_ack(&mut self, ack_block: u16) -> TftpResult {
+    fn handle_ack(&mut self, ack_block: u16) -> TftpResult<Packets> {
         if ack_block == self.expected_block_num.wrapping_sub(1) {
             Repeat
         } else if ack_block != self.expected_block_num {
-            Done(Some(Packet::ERROR {
-                code: ErrorCode::UnknownID,
-                msg: "Incorrect block num in ACK".to_owned(),
-            }))
+            Done(Some(
+                Packet::ERROR {
+                    code: ErrorCode::UnknownID,
+                    msg: "Incorrect block num in ACK".to_owned(),
+                }.into(),
+            ))
         } else if self.sent_final {
             Done(None)
         } else {
             self.meta.timed_out = false;
-            match self.read_step() {
-                Ok(p) => Reply(p),
-                Err(p) => Done(Some(p)),
+            let mut v = vec![];
+            for _ in 0..self.meta.window_size {
+                match self.read_step() {
+                    Ok(p) => v.push(p),
+                    Err(p) => return Done(Some(p.into())),
+                }
             }
+            v.reverse();
+            Reply(Packets { p: v })
         }
     }
 
@@ -358,7 +408,7 @@ impl<R: Read> TransferTx<R> {
 }
 
 impl<W: Write> TransferRx<W> {
-    fn handle_data(&mut self, block_num: u16, data: &[u8]) -> TftpResult {
+    fn handle_data(&mut self, block_num: u16, data: &[u8]) -> TftpResult<Packet> {
         if block_num != self.expected_block_num {
             Done(Some(Packet::ERROR {
                 code: ErrorCode::IllegalTFTP,
