@@ -1108,17 +1108,12 @@ fn rrq_windowsize_2_ok() {
     );
     let mut xfer = xfer.unwrap();
 
-    let p_1 = Packet::DATA {
-        block_num: 1,
-        data: file_bytes.gen(512),
-    };
-    let p_2 = Packet::DATA {
-        block_num: 2,
-        data: file_bytes.gen(512),
-    };
     result_content!(
         xfer.rx2(Packet::ACK(0)) => Reply(packs) => packs.collect::<Vec<_>>(),
-        vec![p_1, p_2]
+        vec![
+            Packet::DATA { block_num: 1, data: file_bytes.gen(512), },
+            Packet::DATA { block_num: 2, data: file_bytes.gen(512), },
+        ]
     );
 
     /*
