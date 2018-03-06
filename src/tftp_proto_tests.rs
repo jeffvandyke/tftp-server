@@ -1128,6 +1128,31 @@ fn rrq_windowsize_2_ok() {
     assert!(xfer.is_done());
 }
 
+#[test]
+fn rrq_windowsize_2_ok_incomplete_window) {
+    let (mut server, file, mut file_bytes) = rrq_fixture(123 /*1 block*/);
+    let (xfer, res) = server.rx_initial(Packet::RRQ {
+        filename: file,
+        mode: Octet,
+        options: vec![TftpOption::WindowSize(2)],
+    });
+    assert_eq!(
+        res,
+        Ok(Packet::OACK {
+            options: vec![TftpOption::WindowSize(2)],
+        })
+    );
+    let mut xfer = xfer.unwrap();
+
+    result_content!(
+        xfer.rx2(Packet::ACK(0)) => Reply(packs) => packs.collect::<Vec<_>>(),
+        vec![
+            Packet::DATA { block_num: 1, data: file_bytes.gen(123), },
+        ]
+    );
+    assert_matches!(xfer.rx2(Packet::ACK(1)), Done(None));
+}
+
 #[derive(Debug)]
 struct ByteGen {
     crt: u8,

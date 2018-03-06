@@ -381,6 +381,9 @@ impl<R: Read> TransferTx<R> {
                     Ok(p) => v.push(p),
                     Err(p) => return Done(Some(p.into())),
                 }
+                if self.sent_final {
+                    break;
+                }
             }
             v.reverse();
             Reply(Packets { p: v })
