@@ -329,7 +329,6 @@ impl<IO: IOAdapter> Transfer<IO> {
                 let first = resp.next().unwrap();
                 let second = resp.next();
                 use self::ResponseItem::*;
-                //eprintln!("fst {:?} snd {:?}", first, second);
                 match (first, second) {
                     (RepeatLast(1), _) => Repeat,
                     (Packet(p), None) => Reply(p),
