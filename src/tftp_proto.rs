@@ -5,38 +5,22 @@ use packet::{ErrorCode, Packet, TftpOption};
 use std::time::Duration;
 
 #[derive(Debug, PartialEq)]
-pub enum TftpResult<P> {
+pub enum TftpResult {
     /// Indicates the packet should be sent back to the client,
     /// and the transfer may continue
-    Reply(P),
+    Reply(Packet),
 
     /// Signals the calling code that it should resend the last packet
     Repeat,
 
     /// Indicates that the packet (if any) should be sent back to the client,
     /// and the transfer is considered terminated
-    Done(Option<P>),
+    Done(Option<Packet>),
 
     /// Indicates an error encountered while processing the packet
     Err(TftpError),
 }
 use self::TftpResult::{Done, Repeat, Reply};
-
-// this is temporary, just like the <P> in TftpResult,
-// until we switch everything over to using the iterator
-impl<P> TftpResult<P> {
-    fn map<Q, F>(self, f: F) -> TftpResult<Q>
-    where
-        F: FnOnce(P) -> Q,
-    {
-        match self {
-            Reply(p) => Reply(f(p)),
-            Repeat => Repeat,
-            Done(p) => Done(p.map(f)),
-            TftpResult::Err(e) => TftpResult::Err(e),
-        }
-    }
-}
 
 #[derive(Debug, PartialEq)]
 pub enum TftpError {
@@ -302,7 +286,7 @@ impl<IO: IOAdapter> Transfer<IO> {
 
     /// Call this to indicate that the timeout since the last received packe has expired
     /// This may return some packets to (re)send or may terminate the transfer
-    pub fn timeout_expired(&mut self) -> TftpResult<Packet> {
+    pub fn timeout_expired(&mut self) -> TftpResult {
         let result = match *self {
             Transfer::Rx(TransferRx { ref mut meta, .. })
             | Transfer::Tx(TransferTx { ref mut meta, .. }) => {
@@ -338,7 +322,7 @@ impl<IO: IOAdapter> Transfer<IO> {
     /// and all future calls to rx will also return `TftpResult::Done`
     ///
     /// Transfer completion can be checked via `Transfer::is_done()`
-    pub fn rx(&mut self, packet: Packet) -> TftpResult<Packet> {
+    pub fn rx(&mut self, packet: Packet) -> TftpResult {
         match self.rx2(packet) {
             Err(e) => TftpResult::Err(e),
             Ok(mut resp) => {
@@ -355,8 +339,6 @@ impl<IO: IOAdapter> Transfer<IO> {
                 }
             }
         }
-
-        //self.rx2(packet).map(|mut p| p.next().unwrap())
     }
 
     pub fn rx2(&mut self, packet: Packet) -> Result<Response, TftpError> {
