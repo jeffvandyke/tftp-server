@@ -1158,7 +1158,8 @@ fn rrq_windowsize_2_ok_incomplete_window() {
 macro_rules! assert_packets {
     ( $e:expr => $pat:pat => $code:expr => [ $($value:expr,)* ] ) => {
         if let $pat = $e {
-            $( assert_eq!($code, $value); )*
+            $( assert_eq!($code, Some($value)); )*
+            assert_eq!($code, None);
         } else {
             panic!("assertion failed: `{:?}` does not match `{} if {}`",
                 $e, stringify!($pat), stringify!($cond))
@@ -1182,15 +1183,13 @@ fn rrq_windowsize_partial_resume() {
     );
     let mut xfer = xfer.unwrap();
 
-    /*
     assert_packets!(
-        xfer.rx2(Packet::ACK(0)) => Ok(packs) => packs.next().unwrap() => [
-            Reply(Packet::DATA { block_num: 1, data: file_bytes.gen(512), }),
-            Reply(Packet::DATA { block_num: 2, data: file_bytes.gen(512), }),
-            Reply(Packet::DATA { block_num: 3, data: file_bytes.gen(512), }),
+        xfer.rx2(Packet::ACK(0)) => Ok(mut packs) => packs.next() => [
+            ResponseItem::Packet(Packet::DATA { block_num: 1, data: file_bytes.gen(512), }),
+            ResponseItem::Packet(Packet::DATA { block_num: 2, data: file_bytes.gen(512), }),
+            ResponseItem::Packet(Packet::DATA { block_num: 3, data: file_bytes.gen(512), }),
         ]
     );
-*/
 
     /*
     result_content!(
