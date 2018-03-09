@@ -85,7 +85,7 @@ pub struct TftpServerProto<IO: IOAdapter> {
     io_proxy: IOPolicyProxy<IO>,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
 pub struct Response {
     p: Vec<ResponseItem>,
 }
