@@ -102,24 +102,37 @@ pub struct TftpServerProto<IO: IOAdapter> {
 }
 
 #[derive(Debug, PartialEq)]
-pub struct Packets {
-    p: Vec<Packet>,
+pub struct Response {
+    p: Vec<ResponseItem>,
 }
 
-impl Iterator for Packets {
-    type Item = Packet;
+impl Iterator for Response {
+    type Item = ResponseItem;
     fn next(&mut self) -> Option<Self::Item> {
         self.p.pop()
     }
 }
 
-impl<T> From<T> for Packets
+impl<T> From<T> for Response
 where
-    T: Into<Packet>,
+    T: Into<ResponseItem>,
 {
-    fn from(p: T) -> Self {
-        Self { p: vec![p.into()] }
+    fn from(r: T) -> Self {
+        Self { p: vec![r.into()] }
     }
+}
+impl From<Vec<ResponseItem>> for Response {
+    fn from(mut v: Vec<ResponseItem>) -> Self {
+        v.reverse();
+        Self { p: v }
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub enum ResponseItem {
+    Packet(Packet),
+    Done,
+    RepeatLast(usize),
 }
 
 impl<IO: IOAdapter> TftpServerProto<IO> {
@@ -326,34 +339,65 @@ impl<IO: IOAdapter> Transfer<IO> {
     ///
     /// Transfer completion can be checked via `Transfer::is_done()`
     pub fn rx(&mut self, packet: Packet) -> TftpResult<Packet> {
-        self.rx2(packet).map(|mut p| p.next().unwrap())
+        match self.rx2(packet) {
+            Err(e) => TftpResult::Err(e),
+            Ok(mut resp) => {
+                let first = resp.next().unwrap();
+                let second = resp.next();
+                use self::ResponseItem::*;
+                //eprintln!("fst {:?} snd {:?}", first, second);
+                match (first, second) {
+                    (RepeatLast(1), _) => Repeat,
+                    (Packet(p), None) => Reply(p),
+                    (Packet(p), Some(Done)) => TftpResult::Done(Some(p)),
+                    (Done, _) => TftpResult::Done(None),
+                    (a, b) => panic!("unhandled pattern: {:?} {:?}", a, b),
+                }
+            }
+        }
+
+        //self.rx2(packet).map(|mut p| p.next().unwrap())
     }
 
-    pub fn rx2(&mut self, packet: Packet) -> TftpResult<Packets> {
+    pub fn rx2(&mut self, packet: Packet) -> Result<Response, TftpError> {
         if self.is_done() {
-            return Done(None);
+            return Ok(ResponseItem::Done.into());
         }
         let result = match (packet, &mut *self) {
-            (Packet::ACK(ack_block), &mut Transfer::Tx(ref mut tx)) => tx.handle_ack(ack_block),
+            (Packet::ACK(ack_block), &mut Transfer::Tx(ref mut tx)) => Ok(tx.handle_ack(ack_block)),
             (
                 Packet::DATA {
                     block_num,
                     ref data,
                 },
                 &mut Transfer::Rx(ref mut rx),
-            ) => rx.handle_data(block_num, data).map(|p| p.into()),
+            ) => {
+                let r = rx.handle_data(block_num, data);
+                let r = match r {
+                    Repeat => ResponseItem::RepeatLast(1).into(),
+                    Done(None) => ResponseItem::Done.into(),
+                    Done(Some(p)) => vec![ResponseItem::Packet(p), ResponseItem::Done].into(),
+                    Reply(p) => ResponseItem::Packet(p).into(),
+                    TftpResult::Err(e) => panic!("unhandled error: {:?}", e),
+                };
+                Ok(r)
+            }
             (Packet::DATA { .. }, _) | (Packet::ACK(_), _) => {
                 // wrong kind of packet, kill transfer
-                Done(Some(ErrorCode::IllegalTFTP.into())).map(|p: Packet| p.into())
+                Ok(vec![
+                    ResponseItem::Packet(ErrorCode::IllegalTFTP.into()),
+                    ResponseItem::Done,
+                ].into())
             }
 
             (Packet::ERROR { .. }, _) => {
                 // receiving an error kills the transfer
-                Done(None).map(|p: Packet| p.into())
+                Ok(ResponseItem::Done.into())
             }
-            _ => TftpResult::Err(TftpError::TransferAlreadyRunning),
+            _ => Err(TftpError::TransferAlreadyRunning),
         };
-        if let Done(_) = result {
+
+        if let Ok(true) = result.as_ref().map(|r| r.p.contains(&ResponseItem::Done)) {
             *self = Transfer::Complete;
         }
         result
@@ -361,32 +405,35 @@ impl<IO: IOAdapter> Transfer<IO> {
 }
 
 impl<R: Read> TransferTx<R> {
-    fn handle_ack(&mut self, ack_block: u16) -> TftpResult<Packets> {
+    fn handle_ack(&mut self, ack_block: u16) -> Response {
+        use self::ResponseItem::RepeatLast;
         if ack_block == self.expected_block_num.wrapping_sub(1) {
-            Repeat
+            RepeatLast(1).into()
         } else if ack_block != self.expected_block_num {
-            Done(Some(
-                Packet::ERROR {
+            vec![
+                ResponseItem::Packet(Packet::ERROR {
                     code: ErrorCode::UnknownID,
                     msg: "Incorrect block num in ACK".to_owned(),
-                }.into(),
-            ))
+                }),
+                ResponseItem::Done,
+            ].into()
         } else if self.sent_final {
-            Done(None)
+            ResponseItem::Done.into()
         } else {
             self.meta.timed_out = false;
             let mut v = vec![];
             for _ in 0..self.meta.window_size {
                 match self.read_step() {
-                    Ok(p) => v.push(p),
-                    Err(p) => return Done(Some(p.into())),
+                    Ok(p) => v.push(ResponseItem::Packet(p)),
+                    Err(p) => {
+                        return vec![ResponseItem::Packet(p), ResponseItem::Done].into();
+                    }
                 }
                 if self.sent_final {
                     break;
                 }
             }
-            v.reverse();
-            Reply(Packets { p: v })
+            v.into()
         }
     }
 
