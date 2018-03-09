@@ -371,17 +371,7 @@ impl<IO: IOAdapter> Transfer<IO> {
                     ref data,
                 },
                 &mut Transfer::Rx(ref mut rx),
-            ) => {
-                let r = rx.handle_data(block_num, data);
-                let r = match r {
-                    Repeat => ResponseItem::RepeatLast(1).into(),
-                    Done(None) => ResponseItem::Done.into(),
-                    Done(Some(p)) => vec![ResponseItem::Packet(p), ResponseItem::Done].into(),
-                    Reply(p) => ResponseItem::Packet(p).into(),
-                    TftpResult::Err(e) => panic!("unhandled error: {:?}", e),
-                };
-                Ok(r)
-            }
+            ) => Ok(rx.handle_data(block_num, data)),
             (Packet::DATA { .. }, _) | (Packet::ACK(_), _) => {
                 // wrong kind of packet, kill transfer
                 Ok(vec![
@@ -458,22 +448,31 @@ impl<R: Read> TransferTx<R> {
 }
 
 impl<W: Write> TransferRx<W> {
-    fn handle_data(&mut self, block_num: u16, data: &[u8]) -> TftpResult<Packet> {
+    fn handle_data(&mut self, block_num: u16, data: &[u8]) -> Response {
         if block_num != self.expected_block_num {
-            Done(Some(Packet::ERROR {
-                code: ErrorCode::IllegalTFTP,
-                msg: "Data packet lost".to_owned(),
-            }))
+            vec![
+                ResponseItem::Packet(Packet::ERROR {
+                    code: ErrorCode::IllegalTFTP,
+                    msg: "Data packet lost".to_owned(),
+                }),
+                ResponseItem::Done,
+            ].into()
         } else {
             self.meta.timed_out = false;
             if self.fwrite.write_all(data).is_err() {
-                return Done(Some(ErrorCode::NotDefined.into()));
+                return vec![
+                    ResponseItem::Packet(ErrorCode::NotDefined.into()),
+                    ResponseItem::Done,
+                ].into();
             }
             self.expected_block_num = block_num.wrapping_add(1);
             if data.len() < self.meta.blocksize as usize {
-                Done(Some(Packet::ACK(block_num)))
+                vec![
+                    ResponseItem::Packet(Packet::ACK(block_num)),
+                    ResponseItem::Done,
+                ].into()
             } else {
-                Reply(Packet::ACK(block_num))
+                ResponseItem::Packet(Packet::ACK(block_num)).into()
             }
         }
     }
