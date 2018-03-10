@@ -4,6 +4,7 @@ extern crate log;
 extern crate byteorder;
 extern crate mio;
 extern crate mio_more;
+extern crate sna;
 
 pub mod packet;
 pub mod server;

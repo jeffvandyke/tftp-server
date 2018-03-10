@@ -378,9 +378,24 @@ impl<IO: IOAdapter> Transfer<IO> {
 impl<R: Read> TransferTx<R> {
     fn handle_ack(&mut self, ack_block: u16) -> Response {
         use self::ResponseItem::RepeatLast;
-        if ack_block == self.expected_block_num.wrapping_sub(1) {
+        use sna::SerialNumber;
+        let ack_block = SerialNumber(ack_block);
+        let expected_block = SerialNumber(self.expected_block_num);
+
+        let mut window_start = 0;
+        let mut v = vec![];
+        if ack_block < expected_block && ack_block + self.meta.window_size >= expected_block {
+            let mut a = ack_block;
+            while a != expected_block {
+                window_start += 1;
+                a += 1;
+            }
+            v.push(RepeatLast(window_start));
+        }
+
+        if self.meta.window_size == 1 && ack_block + 1 == expected_block {
             RepeatLast(1).into()
-        } else if ack_block != self.expected_block_num {
+        } else if self.meta.window_size == 1 && ack_block != expected_block {
             vec![
                 ResponseItem::Packet(Packet::ERROR {
                     code: ErrorCode::UnknownID,
@@ -392,8 +407,7 @@ impl<R: Read> TransferTx<R> {
             ResponseItem::Done.into()
         } else {
             self.meta.timed_out = false;
-            let mut v = vec![];
-            for _ in 0..self.meta.window_size {
+            for _ in window_start..self.meta.window_size as usize {
                 match self.read_step() {
                     Ok(p) => v.push(ResponseItem::Packet(p)),
                     Err(p) => {

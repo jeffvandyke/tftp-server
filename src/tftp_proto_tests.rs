@@ -1191,24 +1191,13 @@ fn rrq_windowsize_partial_resume() {
         ]
     );
 
-    /*
-    result_content!(
-        xfer.rx2(Packet::ACK(0)) => Reply(packs) => packs.collect::<Vec<_>>(),
-        vec![
-            Packet::DATA { block_num: 1, data: file_bytes.gen(512), },
-            Packet::DATA { block_num: 2, data: file_bytes.gen(512), },
-            Packet::DATA { block_num: 3, data: file_bytes.gen(512), },
+    // assuming 2 and 3 got lost
+    assert_packets!(
+        xfer.rx2(Packet::ACK(1)) => Ok(mut packs) => packs.next() => [
+            ResponseItem::RepeatLast(2),
+            ResponseItem::Packet(Packet::DATA { block_num: 4, data: file_bytes.gen(123), }),
         ]
     );
-
-    result_content!(
-        xfer.rx2(Packet::ACK(1)) => Repeat2(packs) => packs.collect::<Vec<_>>(),
-        vec![
-            Packet::DATA { block_num: 2, data: file_bytes.gen(512), },
-            Packet::DATA { block_num: 3, data: file_bytes.gen(123), },
-        ]
-    );
-*/
 
     //assert_matches!(xfer.rx2(Packet::ACK(4)), Done(None));
     //assert!(xfer.is_done());
