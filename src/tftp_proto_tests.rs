@@ -1232,6 +1232,32 @@ fn wrq_windowsize_2_ok() {
     );
 }
 
+#[test]
+fn wrq_windowsize_2_ok_incomplete_window() {
+    let (mut server, file, mut file_bytes) = wrq_fixture(123);
+    let (xfer, res) = server.rx_initial(Packet::WRQ {
+        filename: file,
+        mode: Octet,
+        options: vec![TftpOption::WindowSize(2)],
+    });
+    assert_eq!(
+        res,
+        Ok(Packet::OACK {
+            options: vec![TftpOption::WindowSize(2)],
+        })
+    );
+    let mut xfer = xfer.unwrap();
+
+    assert_packets!(
+        xfer.rx2(Packet::DATA { block_num: 1, data: file_bytes.gen(123), })
+            => Ok(mut packs) => packs.next() =>
+        [
+            ResponseItem::Packet(Packet::ACK(1)),
+            ResponseItem::Done,
+        ]
+    );
+}
+
 #[derive(Debug)]
 struct ByteGen {
     crt: u8,
