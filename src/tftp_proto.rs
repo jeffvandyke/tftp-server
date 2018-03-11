@@ -393,9 +393,7 @@ impl<R: Read> TransferTx<R> {
             v.push(RepeatLast(window_start));
         }
 
-        if self.meta.window_size == 1 && ack_block + 1 == expected_block {
-            RepeatLast(1).into()
-        } else if self.meta.window_size == 1 && ack_block != expected_block {
+        if v.is_empty() && ack_block != expected_block {
             vec![
                 ResponseItem::Packet(Packet::ERROR {
                     code: ErrorCode::UnknownID,
@@ -403,7 +401,7 @@ impl<R: Read> TransferTx<R> {
                 }),
                 ResponseItem::Done,
             ].into()
-        } else if self.sent_final {
+        } else if self.sent_final && v.is_empty() {
             ResponseItem::Done.into()
         } else {
             self.meta.timed_out = false;
