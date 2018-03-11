@@ -1199,8 +1199,12 @@ fn rrq_windowsize_partial_resume() {
         ]
     );
 
-    //assert_matches!(xfer.rx2(Packet::ACK(4)), Done(None));
-    //assert!(xfer.is_done());
+    assert_packets!(
+        xfer.rx2(Packet::ACK(4)) => Ok(mut packs) => packs.next() => [
+            ResponseItem::Done,
+        ]
+    );
+    assert!(xfer.is_done());
 }
 
 #[derive(Debug)]
