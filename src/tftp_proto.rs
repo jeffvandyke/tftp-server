@@ -382,9 +382,25 @@ impl<R: Read> TransferTx<R> {
         let ack_block = SerialNumber(ack_block);
         let expected_block = SerialNumber(self.expected_block_num);
 
+        if self.sent_final && ack_block == expected_block {
+            return ResponseItem::Done.into();
+        }
+
+        if ack_block > expected_block || ack_block + self.meta.window_size < expected_block {
+            // ack block outside of possible window, error and kill transfer
+            return vec![
+                ResponseItem::Packet(Packet::ERROR {
+                    code: ErrorCode::UnknownID,
+                    msg: "Incorrect block num in ACK".to_owned(),
+                }),
+                ResponseItem::Done,
+            ].into();
+        }
+
         let mut window_start = 0;
         let mut v = vec![];
-        if ack_block < expected_block && ack_block + self.meta.window_size >= expected_block {
+        if ack_block < expected_block {
+            // FIXME: SerialNumber doesn't implement Sub, find a better way to do this
             let mut a = ack_block;
             while a != expected_block {
                 window_start += 1;
@@ -393,31 +409,19 @@ impl<R: Read> TransferTx<R> {
             v.push(RepeatLast(window_start));
         }
 
-        if v.is_empty() && ack_block != expected_block {
-            vec![
-                ResponseItem::Packet(Packet::ERROR {
-                    code: ErrorCode::UnknownID,
-                    msg: "Incorrect block num in ACK".to_owned(),
-                }),
-                ResponseItem::Done,
-            ].into()
-        } else if self.sent_final && v.is_empty() {
-            ResponseItem::Done.into()
-        } else {
-            self.meta.timed_out = false;
-            for _ in window_start..self.meta.window_size as usize {
-                match self.read_step() {
-                    Ok(p) => v.push(ResponseItem::Packet(p)),
-                    Err(p) => {
-                        return vec![ResponseItem::Packet(p), ResponseItem::Done].into();
-                    }
-                }
-                if self.sent_final {
-                    break;
+        self.meta.timed_out = false;
+        for _ in window_start..self.meta.window_size as usize {
+            match self.read_step() {
+                Ok(p) => v.push(ResponseItem::Packet(p)),
+                Err(p) => {
+                    return vec![ResponseItem::Packet(p), ResponseItem::Done].into();
                 }
             }
-            v.into()
+            if self.sent_final {
+                break;
+            }
         }
+        v.into()
     }
 
     fn read_step(&mut self) -> Result<Packet, Packet> {
