@@ -1092,7 +1092,18 @@ macro_rules! result_content {
     };
 }
 
-/*
+macro_rules! assert_packets {
+    ( $e:expr => $pat:pat => $code:expr => [ $($value:expr,)* ] ) => {
+        if let $pat = $e {
+            $( assert_eq!($code, Some($value)); )*
+            assert_eq!($code, None);
+        } else {
+            panic!("assertion failed: `{:?}` does not match `{} if {}`",
+                $e, stringify!($pat), stringify!($cond))
+        }
+    };
+}
+
 #[test]
 fn rrq_windowsize_2_ok() {
     let (mut server, file, mut file_bytes) = rrq_fixture(512 * 3 + 123 /*4 blocks*/);
@@ -1109,26 +1120,29 @@ fn rrq_windowsize_2_ok() {
     );
     let mut xfer = xfer.unwrap();
 
-    result_content!(
-        xfer.rx2(Packet::ACK(0)) => Reply(packs) => packs.collect::<Vec<_>>(),
-        vec![
-            Packet::DATA { block_num: 1, data: file_bytes.gen(512), },
-            Packet::DATA { block_num: 2, data: file_bytes.gen(512), },
+    assert_packets!(
+        xfer.rx2(Packet::ACK(0)) => Ok(mut packs) => packs.next() => [
+            ResponseItem::Packet(Packet::DATA { block_num: 1, data: file_bytes.gen(512), }),
+            ResponseItem::Packet(Packet::DATA { block_num: 2, data: file_bytes.gen(512), }),
         ]
     );
 
-    result_content!(
-        xfer.rx2(Packet::ACK(2)) => Reply(packs) => packs.collect::<Vec<_>>(),
-        vec![
-            Packet::DATA { block_num: 3, data: file_bytes.gen(512), },
-            Packet::DATA { block_num: 4, data: file_bytes.gen(123), },
+    assert_packets!(
+        xfer.rx2(Packet::ACK(2)) => Ok(mut packs) => packs.next() => [
+            ResponseItem::Packet(Packet::DATA { block_num: 3, data: file_bytes.gen(512), }),
+            ResponseItem::Packet(Packet::DATA { block_num: 4, data: file_bytes.gen(123), }),
         ]
     );
 
-    assert_matches!(xfer.rx2(Packet::ACK(4)), Done(None));
+    assert_packets!(
+        xfer.rx2(Packet::ACK(4)) => Ok(mut packs) => packs.next() => [
+            ResponseItem::Done,
+        ]
+    );
     assert!(xfer.is_done());
 }
 
+/*
 #[test]
 fn rrq_windowsize_2_ok_incomplete_window() {
     let (mut server, file, mut file_bytes) = rrq_fixture(123 /*1 block*/);
@@ -1154,18 +1168,6 @@ fn rrq_windowsize_2_ok_incomplete_window() {
     assert_matches!(xfer.rx2(Packet::ACK(1)), Done(None));
 }
 */
-
-macro_rules! assert_packets {
-    ( $e:expr => $pat:pat => $code:expr => [ $($value:expr,)* ] ) => {
-        if let $pat = $e {
-            $( assert_eq!($code, Some($value)); )*
-            assert_eq!($code, None);
-        } else {
-            panic!("assertion failed: `{:?}` does not match `{} if {}`",
-                $e, stringify!($pat), stringify!($cond))
-        }
-    };
-}
 
 #[test]
 fn rrq_windowsize_partial_resume() {
