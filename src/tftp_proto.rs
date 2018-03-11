@@ -264,7 +264,7 @@ impl<IO: IOAdapter> Transfer<IO> {
     ) -> (Option<Transfer<IO>>, Packet) {
         let xfer = TransferRx {
             fwrite,
-            expected_block_num: 1,
+            expected_block_num: meta.window_size,
             meta,
         };
 
@@ -397,20 +397,14 @@ impl<R: Read> TransferTx<R> {
             ].into();
         }
 
-        let mut window_start = 0;
+        let window_start = expected_block.0.wrapping_sub(ack_block.0);
         let mut v = vec![];
-        if ack_block < expected_block {
-            // FIXME: SerialNumber doesn't implement Sub, find a better way to do this
-            let mut a = ack_block;
-            while a != expected_block {
-                window_start += 1;
-                a += 1;
-            }
-            v.push(RepeatLast(window_start));
+        if window_start != 0 {
+            v.push(RepeatLast(window_start as usize));
         }
 
         self.meta.timed_out = false;
-        for _ in window_start..self.meta.window_size as usize {
+        for _ in window_start..self.meta.window_size {
             match self.read_step() {
                 Ok(p) => v.push(ResponseItem::Packet(p)),
                 Err(p) => {
@@ -446,7 +440,11 @@ impl<R: Read> TransferTx<R> {
 
 impl<W: Write> TransferRx<W> {
     fn handle_data(&mut self, block_num: u16, data: &[u8]) -> Response {
-        if block_num != self.expected_block_num {
+        use sna::SerialNumber;
+        let block = SerialNumber(block_num);
+        let expected_block = SerialNumber(self.expected_block_num);
+        if block > expected_block || block + self.meta.window_size < expected_block {
+            // ack block outside of possible window, error and kill transfer
             vec![
                 ResponseItem::Packet(Packet::ERROR {
                     code: ErrorCode::IllegalTFTP,
@@ -462,14 +460,17 @@ impl<W: Write> TransferRx<W> {
                     ResponseItem::Done,
                 ].into();
             }
-            self.expected_block_num = block_num.wrapping_add(1);
             if data.len() < self.meta.blocksize as usize {
                 vec![
                     ResponseItem::Packet(Packet::ACK(block_num)),
                     ResponseItem::Done,
                 ].into()
-            } else {
+            } else if block == expected_block {
+                self.expected_block_num =
+                    self.expected_block_num.wrapping_add(self.meta.window_size);
                 ResponseItem::Packet(Packet::ACK(block_num)).into()
+            } else {
+                vec![].into()
             }
         }
     }
