@@ -3,6 +3,7 @@ use std::fs::{self, File};
 use std::path::{Component, Path, PathBuf};
 use packet::{ErrorCode, Packet, TftpOption};
 use std::time::Duration;
+use sna::SerialNumber;
 
 #[derive(Debug, PartialEq)]
 pub enum TftpResult {
@@ -221,15 +222,15 @@ pub enum Transfer<IO: IOAdapter> {
 #[derive(Debug)]
 pub struct TransferRx<W: Write> {
     fwrite: W,
-    expected_block_num: u16,
-    last_recv: u16,
+    expected_block: SerialNumber<u16>,
+    last_recv: SerialNumber<u16>,
     meta: TransferMeta,
 }
 
 #[derive(Debug)]
 pub struct TransferTx<R: Read> {
     fread: R,
-    expected_block_num: u16,
+    expected_block: SerialNumber<u16>,
     sent_final: bool,
     meta: TransferMeta,
 }
@@ -242,7 +243,7 @@ impl<IO: IOAdapter> Transfer<IO> {
     ) -> (Option<Transfer<IO>>, Packet) {
         let mut xfer = TransferTx {
             fread,
-            expected_block_num: 0,
+            expected_block: 0.into(),
             sent_final: false,
             meta,
         };
@@ -265,8 +266,8 @@ impl<IO: IOAdapter> Transfer<IO> {
     ) -> (Option<Transfer<IO>>, Packet) {
         let xfer = TransferRx {
             fwrite,
-            expected_block_num: meta.window_size,
-            last_recv: 0,
+            expected_block: meta.window_size.into(),
+            last_recv: 0.into(),
             meta,
         };
 
@@ -380,15 +381,15 @@ impl<IO: IOAdapter> Transfer<IO> {
 impl<R: Read> TransferTx<R> {
     fn handle_ack(&mut self, ack_block: u16) -> Response {
         use self::ResponseItem::RepeatLast;
-        use sna::SerialNumber;
         let ack_block = SerialNumber(ack_block);
-        let expected_block = SerialNumber(self.expected_block_num);
 
-        if self.sent_final && ack_block == expected_block {
+        if self.sent_final && ack_block == self.expected_block {
             return ResponseItem::Done.into();
         }
 
-        if ack_block > expected_block || ack_block + self.meta.window_size < expected_block {
+        if ack_block > self.expected_block
+            || ack_block + self.meta.window_size < self.expected_block
+        {
             // ack block outside of possible window, error and kill transfer
             return vec![
                 ResponseItem::Packet(Packet::ERROR {
@@ -399,7 +400,7 @@ impl<R: Read> TransferTx<R> {
             ].into();
         }
 
-        let window_start = expected_block.0.wrapping_sub(ack_block.0);
+        let window_start = self.expected_block.0.wrapping_sub(ack_block.0);
         let mut v = vec![];
         if window_start != 0 {
             v.push(RepeatLast(window_start as usize));
@@ -432,21 +433,19 @@ impl<R: Read> TransferTx<R> {
         }
 
         self.sent_final = v.len() < self.meta.blocksize as usize;
-        self.expected_block_num = self.expected_block_num.wrapping_add(1);
+        self.expected_block += 1;
         Ok(Packet::DATA {
-            block_num: self.expected_block_num,
+            block_num: self.expected_block.0,
             data: v,
         })
     }
 }
 
 impl<W: Write> TransferRx<W> {
-    fn handle_data(&mut self, block_num: u16, data: &[u8]) -> Response {
-        use sna::SerialNumber;
-        let block = SerialNumber(block_num);
-        let expected_block = SerialNumber(self.expected_block_num);
-        if block > expected_block || block + self.meta.window_size < expected_block {
-            // ack block outside of possible window, error and kill transfer
+    fn handle_data(&mut self, block: u16, data: &[u8]) -> Response {
+        let block = SerialNumber(block);
+        if block > self.expected_block || block + self.meta.window_size < self.expected_block {
+            // data block outside of possible window, error and kill transfer
             vec![
                 ResponseItem::Packet(Packet::ERROR {
                     code: ErrorCode::IllegalTFTP,
@@ -455,15 +454,15 @@ impl<W: Write> TransferRx<W> {
                 ResponseItem::Done,
             ].into()
         } else {
-            if self.last_recv.wrapping_add(1) != block_num {
+            if self.last_recv + 1 != block {
                 // out of sequence
                 // reset window
-                self.expected_block_num = self.last_recv.wrapping_add(self.meta.window_size);
+                self.expected_block = self.last_recv + self.meta.window_size;
                 // ack last block to signal that's what we got
-                return ResponseItem::Packet(Packet::ACK(self.last_recv)).into();
+                return ResponseItem::Packet(Packet::ACK(self.last_recv.0)).into();
             }
             self.meta.timed_out = false;
-            self.last_recv = block_num;
+            self.last_recv = block;
             if self.fwrite.write_all(data).is_err() {
                 return vec![
                     ResponseItem::Packet(ErrorCode::NotDefined.into()),
@@ -472,13 +471,12 @@ impl<W: Write> TransferRx<W> {
             }
             if data.len() < self.meta.blocksize as usize {
                 vec![
-                    ResponseItem::Packet(Packet::ACK(block_num)),
+                    ResponseItem::Packet(Packet::ACK(block.0)),
                     ResponseItem::Done,
                 ].into()
-            } else if block == expected_block {
-                self.expected_block_num =
-                    self.expected_block_num.wrapping_add(self.meta.window_size);
-                ResponseItem::Packet(Packet::ACK(block_num)).into()
+            } else if block == self.expected_block {
+                self.expected_block += self.meta.window_size;
+                ResponseItem::Packet(Packet::ACK(block.0)).into()
             } else {
                 vec![].into()
             }
