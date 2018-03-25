@@ -1190,6 +1190,33 @@ fn rrq_windowsize_partial_resume() {
 }
 
 #[test]
+fn rrq_windowsize_3_timeout_reset() {
+    let (mut server, file, mut file_bytes) = rrq_fixture(512 * 3 + 123 /*4 blocks*/);
+    let (xfer, res) = server.rx_initial(Packet::RRQ {
+        filename: file,
+        mode: Octet,
+        options: vec![TftpOption::WindowSize(3)],
+    });
+    assert_eq!(
+        res,
+        Ok(Packet::OACK {
+            options: vec![TftpOption::WindowSize(3)],
+        })
+    );
+    let mut xfer = xfer.unwrap();
+
+    assert_packets!(
+        xfer.rx2(Packet::ACK(0)) => Ok(mut packs) => packs.next() => [
+            ResponseItem::Packet(Packet::DATA { block_num: 1, data: file_bytes.gen(512), }),
+            ResponseItem::Packet(Packet::DATA { block_num: 2, data: file_bytes.gen(512), }),
+            ResponseItem::Packet(Packet::DATA { block_num: 3, data: file_bytes.gen(512), }),
+        ]
+    );
+
+    assert_eq!(xfer.timeout_expired2(), ResponseItem::RepeatLast(3));
+}
+
+#[test]
 fn wrq_windowsize_2_ok() {
     let (mut server, file, mut file_bytes) = wrq_fixture(512 * 3 + 123);
     let (xfer, res) = server.rx_initial(Packet::WRQ {
