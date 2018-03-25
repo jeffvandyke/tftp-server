@@ -1258,6 +1258,72 @@ fn wrq_windowsize_2_ok_incomplete_window() {
     );
 }
 
+#[test]
+fn wrq_windowsize_3_reorder_discard() {
+    let (mut server, file, mut file_bytes) = wrq_fixture(512 * 3 + 123);
+    let (xfer, res) = server.rx_initial(Packet::WRQ {
+        filename: file,
+        mode: Octet,
+        options: vec![TftpOption::WindowSize(3)],
+    });
+    assert_eq!(
+        res,
+        Ok(Packet::OACK {
+            options: vec![TftpOption::WindowSize(3)],
+        })
+    );
+    let mut xfer = xfer.unwrap();
+
+    let p1 = Packet::DATA {
+        block_num: 1,
+        data: file_bytes.gen(512),
+    };
+    let p2 = Packet::DATA {
+        block_num: 2,
+        data: file_bytes.gen(512),
+    };
+    let p3 = Packet::DATA {
+        block_num: 3,
+        data: file_bytes.gen(512),
+    };
+    let p4 = Packet::DATA {
+        block_num: 4,
+        data: file_bytes.gen(123),
+    };
+
+    let res = xfer.rx2(p1);
+    assert_packets!(
+        res => Ok(mut packs) => packs.next() => []
+    );
+
+    let res = xfer.rx2(p3.clone());
+    assert_packets!(
+        res => Ok(mut packs) => packs.next() =>
+        [
+            ResponseItem::Packet(Packet::ACK(1)),
+        ]
+    );
+
+    let res = xfer.rx2(p2);
+    assert_packets!(
+        res => Ok(mut packs) => packs.next() => []
+    );
+
+    let res = xfer.rx2(p3);
+    assert_packets!(
+        res => Ok(mut packs) => packs.next() => []
+    );
+
+    let res = xfer.rx2(p4);
+    assert_packets!(
+        res => Ok(mut packs) => packs.next() =>
+        [
+            ResponseItem::Packet(Packet::ACK(4)),
+            ResponseItem::Done,
+        ]
+    );
+}
+
 #[derive(Debug)]
 struct ByteGen {
     crt: u8,

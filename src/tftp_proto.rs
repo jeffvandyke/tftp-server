@@ -222,6 +222,7 @@ pub enum Transfer<IO: IOAdapter> {
 pub struct TransferRx<W: Write> {
     fwrite: W,
     expected_block_num: u16,
+    last_recv: u16,
     meta: TransferMeta,
 }
 
@@ -265,6 +266,7 @@ impl<IO: IOAdapter> Transfer<IO> {
         let xfer = TransferRx {
             fwrite,
             expected_block_num: meta.window_size,
+            last_recv: 0,
             meta,
         };
 
@@ -453,7 +455,15 @@ impl<W: Write> TransferRx<W> {
                 ResponseItem::Done,
             ].into()
         } else {
+            if self.last_recv.wrapping_add(1) != block_num {
+                // out of sequence
+                // reset window
+                self.expected_block_num = self.last_recv.wrapping_add(self.meta.window_size);
+                // ack last block to signal that's what we got
+                return ResponseItem::Packet(Packet::ACK(self.last_recv)).into();
+            }
             self.meta.timed_out = false;
+            self.last_recv = block_num;
             if self.fwrite.write_all(data).is_err() {
                 return vec![
                     ResponseItem::Packet(ErrorCode::NotDefined.into()),
