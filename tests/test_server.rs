@@ -4,12 +4,12 @@ extern crate tftp_server;
 #[macro_use]
 extern crate assert_matches;
 
+use std::borrow::BorrowMut;
 use std::fs::{self, File};
 use std::io::{self, Read, Write};
 use std::net::{IpAddr, SocketAddr, UdpSocket};
 use std::thread;
 use std::time::Duration;
-use std::borrow::BorrowMut;
 use tftp_server::packet::{ErrorCode, Packet, TftpOption, MAX_PACKET_SIZE};
 use tftp_server::server::{Result, ServerConfig, TftpServer};
 

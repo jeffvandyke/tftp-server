@@ -1,8 +1,8 @@
-use std::net::{IpAddr, UdpSocket};
-use std::time::Duration;
 use std::io::Result;
+use std::net::{IpAddr, UdpSocket};
 use std::sync::mpsc::*;
 use std::thread;
+use std::time::Duration;
 
 pub const TIMEOUT: u64 = 3;
 

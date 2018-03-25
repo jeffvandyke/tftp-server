@@ -6,10 +6,10 @@ extern crate mio;
 extern crate mio_more;
 extern crate sna;
 
+mod options;
 pub mod packet;
 pub mod server;
 mod tftp_proto;
-mod options;
 
 #[cfg(test)]
 mod tftp_proto_tests;

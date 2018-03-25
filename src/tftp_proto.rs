@@ -1,9 +1,9 @@
-use std::io::{self, Read, Write};
-use std::fs::{self, File};
-use std::path::{Component, Path, PathBuf};
 use packet::{ErrorCode, Packet, TftpOption};
-use std::time::Duration;
 use sna::SerialNumber;
+use std::fs::{self, File};
+use std::io::{self, Read, Write};
+use std::path::{Component, Path, PathBuf};
+use std::time::Duration;
 
 #[derive(Debug, PartialEq)]
 pub enum TftpResult {

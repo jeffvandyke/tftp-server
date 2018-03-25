@@ -4,11 +4,11 @@ extern crate tftp_server;
 #[macro_use]
 extern crate clap;
 
-use tftp_server::server::{ServerConfig, TftpServer};
-use std::str::FromStr;
 use std::net::*;
 use std::path::Path;
+use std::str::FromStr;
 use std::time::Duration;
+use tftp_server::server::{ServerConfig, TftpServer};
 
 use clap::{App, Arg};
 

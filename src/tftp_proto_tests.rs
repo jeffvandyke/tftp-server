@@ -1,13 +1,13 @@
+use packet::{ErrorCode, Packet, TftpOption};
 use std::collections::{HashMap, HashSet};
 use std::io::{self, Read, Write};
 use std::iter::Take;
 use std::path::Path;
-use packet::{ErrorCode, Packet, TftpOption};
-use tftp_proto::*;
 use std::time::Duration;
+use tftp_proto::*;
 
-use tftp_proto::TftpResult::{Done, Repeat, Reply};
 use packet::TransferMode::*;
+use tftp_proto::TftpResult::{Done, Repeat, Reply};
 
 #[test]
 fn initial_ack_err() {

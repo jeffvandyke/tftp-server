@@ -1,11 +1,11 @@
+use mio::net::UdpSocket;
 use mio::*;
 use mio_more::timer::{Timeout, Timer, TimerError};
-use mio::net::UdpSocket;
 use packet::{ErrorCode, Packet, PacketErr, MAX_PACKET_SIZE};
 use std::collections::HashMap;
 use std::io;
-use std::path::PathBuf;
 use std::net::{self, IpAddr, SocketAddr};
+use std::path::PathBuf;
 use std::result;
 use std::time::Duration;
 use tftp_proto::*;

@@ -1,7 +1,7 @@
-use std::{io, result, str};
-use std::io::Write;
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 pub use options::*;
+use std::io::Write;
+use std::{io, result, str};
 
 #[derive(Debug)]
 pub enum PacketErr {
@@ -430,14 +430,16 @@ mod tests {
     }
 
     macro_rules! packet_enc_dec_test {
-        ($name:ident, $packet:expr) => {
+        ($name: ident, $packet: expr) => {
             #[test]
             fn $name() {
                 let bytes = $packet.clone().into_bytes();
                 assert!(bytes.is_ok());
                 let packet = bytes.and_then(|pd| Packet::read(pd.as_slice()));
                 assert!(packet.is_ok());
-                let _ = packet.map(|packet| { assert_eq!(packet, $packet); });
+                let _ = packet.map(|packet| {
+                    assert_eq!(packet, $packet);
+                });
             }
         };
     }
