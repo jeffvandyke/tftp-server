@@ -340,18 +340,20 @@ impl<IO: IOAdapter> Transfer<IO> {
     pub fn rx(&mut self, packet: Packet) -> TftpResult {
         match self.rx2(packet) {
             Err(e) => TftpResult::Err(e),
-            Ok(mut resp) => {
-                let first = resp.next().unwrap();
-                let second = resp.next();
-                use self::ResponseItem::*;
-                match (first, second) {
-                    (RepeatLast(1), _) => Repeat,
-                    (Packet(p), None) => Reply(p),
-                    (Packet(p), Some(Done)) => TftpResult::Done(Some(p)),
-                    (Done, _) => TftpResult::Done(None),
-                    (a, b) => panic!("unhandled pattern: {:?} {:?}", a, b),
-                }
-            }
+            Ok(resp) => Self::response_to_result(resp),
+        }
+    }
+
+    fn response_to_result(mut resp: Response) -> TftpResult {
+        let first = resp.next().unwrap();
+        let second = resp.next();
+        use self::ResponseItem::*;
+        match (first, second) {
+            (RepeatLast(1), _) => Repeat,
+            (Packet(p), None) => Reply(p),
+            (Packet(p), Some(Done)) => TftpResult::Done(Some(p)),
+            (Done, _) => TftpResult::Done(None),
+            (a, b) => panic!("unhandled pattern: {:?} {:?}", a, b),
         }
     }
 
