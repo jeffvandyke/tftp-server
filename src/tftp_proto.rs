@@ -287,7 +287,7 @@ impl<IO: IOAdapter> Transfer<IO> {
         }
     }
 
-    /// Call this to indicate that the timeout since the last received packe has expired
+    /// Call this to indicate that the timeout since the last received packet has expired
     /// This may return some packets to (re)send or may terminate the transfer
     pub fn timeout_expired(&mut self) -> TftpResult {
         let result = match *self {
