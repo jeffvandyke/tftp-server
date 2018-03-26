@@ -181,7 +181,13 @@ impl<IO: IOAdapter> TftpServerProto<IO> {
                             return None;
                         }
                     }
+
+                    #[cfg(test)]
+                    // window size only enabled for testing until the server rework
                     TftpOption::WindowSize(size) => meta.window_size = size,
+
+                    #[cfg(not(test))]
+                    _ => {}
                 }
                 Some(opt)
             })

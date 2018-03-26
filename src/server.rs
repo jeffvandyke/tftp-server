@@ -327,8 +327,6 @@ impl<IO: IOAdapter + Default> TftpServerImpl<IO> {
     }
 
     fn handle_connection_packet(&mut self, token: Token, buf: &mut [u8]) -> Result<()> {
-        use self::TftpResult::*;
-
         self.reset_timeout(&token)?;
         let conn = match self.connections.get_mut(&token) {
             Some(conn) => conn,
@@ -347,23 +345,31 @@ impl<IO: IOAdapter + Default> TftpServerImpl<IO> {
         }
         let packet = Packet::read(&buf[..amt])?;
 
-        let response = match conn.transfer.rx(packet) {
+        let response = match conn.transfer.rx2(packet) {
+            Ok(resp) => resp,
             Err(e) => {
                 error!("{:?}", e);
-                None
+                return Ok(());
             }
-            Repeat => Some(&conn.last_packet),
-            Reply(packet) | Done(Some(packet)) => {
-                conn.last_packet = packet;
-                Some(&conn.last_packet)
-            }
-            Done(None) => None,
         };
 
-        if let Some(packet) = response {
-            let amt = packet.write_to_slice(buf)?;
+        for item in response {
+            match item {
+                ResponseItem::Done => break,
+                ResponseItem::Packet(packet) => {
+                    conn.last_packet = packet;
+                }
+                ResponseItem::RepeatLast(count) => {
+                    if count != 1 {
+                        error!("cannot repeat more than last packet");
+                    }
+                }
+            }
+
+            let amt = conn.last_packet.write_to_slice(buf)?;
             conn.socket.send_to(&buf[..amt], &conn.remote)?;
         }
+
         Ok(())
     }
 
