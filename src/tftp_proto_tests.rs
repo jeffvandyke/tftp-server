@@ -9,6 +9,18 @@ use tftp_proto::*;
 use packet::TransferMode::*;
 use tftp_proto::TftpResult::{Done, Repeat, Reply};
 
+macro_rules! assert_packets {
+    ( $e:expr => [ $($value:expr,)* ] ) => {
+        if let Ok(mut packs) = $e {
+            $( assert_eq!(packs.next(), Some($value)); )*
+            assert_eq!(packs.next(), None);
+        } else {
+            panic!("assertion failed: `{:?}` does not match `{} if {}`",
+                $e, stringify!($pat), stringify!($cond))
+        }
+    };
+}
+
 #[test]
 fn initial_ack_err() {
     let iof = TestIoFactory::new();
@@ -132,7 +144,7 @@ fn rrq_small_file_ack_end() {
     let mut xfer = xfer.unwrap();
     assert!(!xfer.is_done());
     assert_eq!(xfer.timeout(), None);
-    assert_eq!(xfer.rx(Packet::ACK(1)), Done(None));
+    assert_packets!(xfer.rx2(Packet::ACK(1)) => [ResponseItem::Done,]);
     assert!(xfer.is_done());
     assert_eq!(xfer.rx(Packet::ACK(0)), Done(None));
 }
@@ -1069,18 +1081,6 @@ fn wrq_timeout_repeat_ack_repeat() {
         Reply(Packet::ACK(1))
     );
     assert_eq!(xfer.timeout_expired(), ResponseItem::RepeatLast(1));
-}
-
-macro_rules! assert_packets {
-    ( $e:expr => [ $($value:expr,)* ] ) => {
-        if let Ok(mut packs) = $e {
-            $( assert_eq!(packs.next(), Some($value)); )*
-            assert_eq!(packs.next(), None);
-        } else {
-            panic!("assertion failed: `{:?}` does not match `{} if {}`",
-                $e, stringify!($pat), stringify!($cond))
-        }
-    };
 }
 
 #[test]
