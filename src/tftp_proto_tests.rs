@@ -1072,10 +1072,10 @@ fn wrq_timeout_repeat_ack_repeat() {
 }
 
 macro_rules! assert_packets {
-    ( $e:expr => $pat:pat => $code:expr => [ $($value:expr,)* ] ) => {
-        if let $pat = $e {
-            $( assert_eq!($code, Some($value)); )*
-            assert_eq!($code, None);
+    ( $e:expr => [ $($value:expr,)* ] ) => {
+        if let Ok(mut packs) = $e {
+            $( assert_eq!(packs.next(), Some($value)); )*
+            assert_eq!(packs.next(), None);
         } else {
             panic!("assertion failed: `{:?}` does not match `{} if {}`",
                 $e, stringify!($pat), stringify!($cond))
@@ -1100,21 +1100,21 @@ fn rrq_windowsize_2_ok() {
     let mut xfer = xfer.unwrap();
 
     assert_packets!(
-        xfer.rx2(Packet::ACK(0)) => Ok(mut packs) => packs.next() => [
+        xfer.rx2(Packet::ACK(0)) => [
             ResponseItem::Packet(Packet::DATA { block_num: 1, data: file_bytes.gen(512), }),
             ResponseItem::Packet(Packet::DATA { block_num: 2, data: file_bytes.gen(512), }),
         ]
     );
 
     assert_packets!(
-        xfer.rx2(Packet::ACK(2)) => Ok(mut packs) => packs.next() => [
+        xfer.rx2(Packet::ACK(2)) => [
             ResponseItem::Packet(Packet::DATA { block_num: 3, data: file_bytes.gen(512), }),
             ResponseItem::Packet(Packet::DATA { block_num: 4, data: file_bytes.gen(123), }),
         ]
     );
 
     assert_packets!(
-        xfer.rx2(Packet::ACK(4)) => Ok(mut packs) => packs.next() => [
+        xfer.rx2(Packet::ACK(4)) => [
             ResponseItem::Done,
         ]
     );
@@ -1138,12 +1138,12 @@ fn rrq_windowsize_2_ok_incomplete_window() {
     let mut xfer = xfer.unwrap();
 
     assert_packets!(
-        xfer.rx2(Packet::ACK(0)) => Ok(mut packs) => packs.next() => [
+        xfer.rx2(Packet::ACK(0)) => [
             ResponseItem::Packet(Packet::DATA { block_num: 1, data: file_bytes.gen(123), }),
         ]
     );
     assert_packets!(
-        xfer.rx2(Packet::ACK(1)) => Ok(mut packs) => packs.next() => [
+        xfer.rx2(Packet::ACK(1)) => [
             ResponseItem::Done,
         ]
     );
@@ -1166,7 +1166,7 @@ fn rrq_windowsize_partial_resume() {
     let mut xfer = xfer.unwrap();
 
     assert_packets!(
-        xfer.rx2(Packet::ACK(0)) => Ok(mut packs) => packs.next() => [
+        xfer.rx2(Packet::ACK(0)) => [
             ResponseItem::Packet(Packet::DATA { block_num: 1, data: file_bytes.gen(512), }),
             ResponseItem::Packet(Packet::DATA { block_num: 2, data: file_bytes.gen(512), }),
             ResponseItem::Packet(Packet::DATA { block_num: 3, data: file_bytes.gen(512), }),
@@ -1175,14 +1175,14 @@ fn rrq_windowsize_partial_resume() {
 
     // assuming 2 and 3 got lost
     assert_packets!(
-        xfer.rx2(Packet::ACK(1)) => Ok(mut packs) => packs.next() => [
+        xfer.rx2(Packet::ACK(1)) => [
             ResponseItem::RepeatLast(2),
             ResponseItem::Packet(Packet::DATA { block_num: 4, data: file_bytes.gen(123), }),
         ]
     );
 
     assert_packets!(
-        xfer.rx2(Packet::ACK(4)) => Ok(mut packs) => packs.next() => [
+        xfer.rx2(Packet::ACK(4)) => [
             ResponseItem::Done,
         ]
     );
@@ -1206,7 +1206,7 @@ fn rrq_windowsize_3_timeout_reset() {
     let mut xfer = xfer.unwrap();
 
     assert_packets!(
-        xfer.rx2(Packet::ACK(0)) => Ok(mut packs) => packs.next() => [
+        xfer.rx2(Packet::ACK(0)) => [
             ResponseItem::Packet(Packet::DATA { block_num: 1, data: file_bytes.gen(512), }),
             ResponseItem::Packet(Packet::DATA { block_num: 2, data: file_bytes.gen(512), }),
             ResponseItem::Packet(Packet::DATA { block_num: 3, data: file_bytes.gen(512), }),
@@ -1233,26 +1233,20 @@ fn wrq_windowsize_2_ok() {
     let mut xfer = xfer.unwrap();
 
     assert_packets!(
-        xfer.rx2(Packet::DATA { block_num: 1, data: file_bytes.gen(512), })
-            => Ok(mut packs) => packs.next() => []
+        xfer.rx2(Packet::DATA { block_num: 1, data: file_bytes.gen(512), }) => []
     );
 
     assert_packets!(
-        xfer.rx2(Packet::DATA { block_num: 2, data: file_bytes.gen(512), })
-            => Ok(mut packs) => packs.next() =>
-        [
+        xfer.rx2(Packet::DATA { block_num: 2, data: file_bytes.gen(512), }) => [
             ResponseItem::Packet(Packet::ACK(2)),
         ]
     );
 
     assert_packets!(
-        xfer.rx2(Packet::DATA { block_num: 3, data: file_bytes.gen(512), })
-            => Ok(mut packs) => packs.next() => []
+        xfer.rx2(Packet::DATA { block_num: 3, data: file_bytes.gen(512), }) => []
     );
     assert_packets!(
-        xfer.rx2(Packet::DATA { block_num: 4, data: file_bytes.gen(123), })
-            => Ok(mut packs) => packs.next() =>
-        [
+        xfer.rx2(Packet::DATA { block_num: 4, data: file_bytes.gen(123), }) => [
             ResponseItem::Packet(Packet::ACK(4)),
             ResponseItem::Done,
         ]
@@ -1276,9 +1270,7 @@ fn wrq_windowsize_2_ok_incomplete_window() {
     let mut xfer = xfer.unwrap();
 
     assert_packets!(
-        xfer.rx2(Packet::DATA { block_num: 1, data: file_bytes.gen(123), })
-            => Ok(mut packs) => packs.next() =>
-        [
+        xfer.rx2(Packet::DATA { block_num: 1, data: file_bytes.gen(123), }) => [
             ResponseItem::Packet(Packet::ACK(1)),
             ResponseItem::Done,
         ]
@@ -1320,31 +1312,29 @@ fn wrq_windowsize_3_reorder_discard() {
 
     let res = xfer.rx2(p1);
     assert_packets!(
-        res => Ok(mut packs) => packs.next() => []
+        res => []
     );
 
     let res = xfer.rx2(p3.clone());
     assert_packets!(
-        res => Ok(mut packs) => packs.next() =>
-        [
+        res => [
             ResponseItem::Packet(Packet::ACK(1)),
         ]
     );
 
     let res = xfer.rx2(p2);
     assert_packets!(
-        res => Ok(mut packs) => packs.next() => []
+        res => []
     );
 
     let res = xfer.rx2(p3);
     assert_packets!(
-        res => Ok(mut packs) => packs.next() => []
+        res => []
     );
 
     let res = xfer.rx2(p4);
     assert_packets!(
-        res => Ok(mut packs) => packs.next() =>
-        [
+        res => [
             ResponseItem::Packet(Packet::ACK(4)),
             ResponseItem::Done,
         ]
@@ -1386,25 +1376,24 @@ fn wrq_windowsize_3_timeout_repeat() {
 
     let res = xfer.rx2(p1);
     assert_packets!(
-        res => Ok(mut packs) => packs.next() => []
+        res => []
     );
 
     assert_eq!(xfer.timeout_expired(), ResponseItem::Packet(Packet::ACK(1)));
 
     let res = xfer.rx2(p2);
     assert_packets!(
-        res => Ok(mut packs) => packs.next() => []
+        res => []
     );
 
     let res = xfer.rx2(p3);
     assert_packets!(
-        res => Ok(mut packs) => packs.next() => []
+        res => []
     );
 
     let res = xfer.rx2(p4);
     assert_packets!(
-        res => Ok(mut packs) => packs.next() =>
-        [
+        res => [
             ResponseItem::Packet(Packet::ACK(4)),
             ResponseItem::Done,
         ]
