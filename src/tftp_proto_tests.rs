@@ -1018,8 +1018,8 @@ fn rrq_timeout_repeat_end() {
     });
     assert_matches!(res, Ok(Packet::DATA { .. }));
     let mut xfer = xfer.unwrap();
-    assert_eq!(xfer.timeout_expired(), Repeat);
-    assert_eq!(xfer.timeout_expired(), Done(None));
+    assert_eq!(xfer.timeout_expired(), ResponseItem::RepeatLast(1));
+    assert_eq!(xfer.timeout_expired(), ResponseItem::Done);
     assert!(xfer.is_done());
 }
 
@@ -1039,7 +1039,7 @@ fn rrq_timeout_repeat_ack_repeat() {
         })
     );
     let mut xfer = xfer.unwrap();
-    assert_eq!(xfer.timeout_expired(), Repeat);
+    assert_eq!(xfer.timeout_expired(), ResponseItem::RepeatLast(1));
     assert_eq!(
         xfer.rx(Packet::ACK(1)),
         Reply(Packet::DATA {
@@ -1047,7 +1047,7 @@ fn rrq_timeout_repeat_ack_repeat() {
             data: file_bytes.gen(512),
         })
     );
-    assert_eq!(xfer.timeout_expired(), Repeat);
+    assert_eq!(xfer.timeout_expired(), ResponseItem::RepeatLast(1));
 }
 
 #[test]
@@ -1060,7 +1060,7 @@ fn wrq_timeout_repeat_ack_repeat() {
     });
     assert_eq!(res, Ok(Packet::ACK(0)));
     let mut xfer = xfer.unwrap();
-    assert_eq!(xfer.timeout_expired(), Repeat);
+    assert_eq!(xfer.timeout_expired(), ResponseItem::RepeatLast(1));
     assert_eq!(
         xfer.rx(Packet::DATA {
             block_num: 1,
@@ -1068,7 +1068,7 @@ fn wrq_timeout_repeat_ack_repeat() {
         }),
         Reply(Packet::ACK(1))
     );
-    assert_eq!(xfer.timeout_expired(), Repeat);
+    assert_eq!(xfer.timeout_expired(), ResponseItem::RepeatLast(1));
 }
 
 macro_rules! assert_packets {
@@ -1213,7 +1213,7 @@ fn rrq_windowsize_3_timeout_reset() {
         ]
     );
 
-    assert_eq!(xfer.timeout_expired2(), ResponseItem::RepeatLast(3));
+    assert_eq!(xfer.timeout_expired(), ResponseItem::RepeatLast(3));
 }
 
 #[test]
@@ -1389,7 +1389,7 @@ fn wrq_windowsize_3_timeout_repeat() {
         res => Ok(mut packs) => packs.next() => []
     );
 
-    assert_eq!(xfer.timeout_expired(), Reply(Packet::ACK(1)));
+    assert_eq!(xfer.timeout_expired(), ResponseItem::Packet(Packet::ACK(1)));
 
     let res = xfer.rx2(p2);
     assert_packets!(

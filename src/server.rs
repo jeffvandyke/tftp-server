@@ -252,7 +252,7 @@ impl<IO: IOAdapter + Default> TftpServerImpl<IO> {
 
         for token in tokens {
             let status = if let Some(ref mut conn) = self.connections.get_mut(&token) {
-                match conn.transfer.timeout_expired2() {
+                match conn.transfer.timeout_expired() {
                     ResponseItem::Packet(packet) => {
                         let amt = packet.write_to_slice(buf)?;
                         let sent = Vec::from(&buf[..amt]);

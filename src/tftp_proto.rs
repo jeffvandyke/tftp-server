@@ -291,17 +291,7 @@ impl<IO: IOAdapter> Transfer<IO> {
 
     /// Call this to indicate that the timeout since the last received packet has expired
     /// This may return some packets to (re)send or may terminate the transfer
-    #[cfg(test)]
-    pub fn timeout_expired(&mut self) -> TftpResult {
-        match self.timeout_expired2() {
-            ResponseItem::RepeatLast(1) => Repeat,
-            ResponseItem::Done => Done(None),
-            ResponseItem::Packet(p) => Reply(p),
-            other => panic!("unhandled response item {:?}", other),
-        }
-    }
-
-    pub fn timeout_expired2(&mut self) -> ResponseItem {
+    pub fn timeout_expired(&mut self) -> ResponseItem {
         let result = match *self {
             Transfer::Rx(ref mut rx) => {
                 if rx.meta.timed_out {
