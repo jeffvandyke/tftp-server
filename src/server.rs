@@ -50,8 +50,9 @@ struct ConnectionState<IO: IOAdapter> {
     timeout: Timeout,
     /// The protocol state associated with this transfer
     transfer: Transfer<IO>,
-    /// The last packet sent. This is used when a timeout happens to resend the last packet.
-    last_packet: Packet,
+    /// The last packets sent.
+    /// This is useful when packets have to be resent due to timeouts or other errors
+    last_packets: Vec<Vec<u8>>,
     /// The address of the client socket to reply to.
     remote: SocketAddr,
 }
@@ -210,7 +211,7 @@ impl<IO: IOAdapter + Default> TftpServerImpl<IO> {
         token: Token,
         socket: UdpSocket,
         transfer: Transfer<IO>,
-        packet: Packet,
+        packet: &[u8],
         remote: SocketAddr,
     ) -> Result<()> {
         let timeout = self.timer
@@ -228,7 +229,7 @@ impl<IO: IOAdapter + Default> TftpServerImpl<IO> {
                 socket,
                 timeout,
                 transfer,
-                last_packet: packet,
+                last_packets: vec![packet.to_vec()],
                 remote,
             },
         );
@@ -253,17 +254,18 @@ impl<IO: IOAdapter + Default> TftpServerImpl<IO> {
             let status = if let Some(ref mut conn) = self.connections.get_mut(&token) {
                 match conn.transfer.timeout_expired2() {
                     ResponseItem::Packet(packet) => {
-                        conn.last_packet = packet;
-                        let amt = conn.last_packet.write_to_slice(buf)?;
-                        conn.socket.send_to(&buf[..amt], &conn.remote)?;
+                        let amt = packet.write_to_slice(buf)?;
+                        let sent = Vec::from(&buf[..amt]);
+                        conn.socket.send_to(&sent, &conn.remote)?;
+                        conn.last_packets = vec![sent];
+
                         Some(Ok(()))
                     }
                     ResponseItem::RepeatLast(count) => {
-                        if count != 1 {
-                            error!("cannot repeat more than last packet");
+                        let skipped = conn.last_packets.len().saturating_sub(count);
+                        for pkt in conn.last_packets.iter().skip(skipped) {
+                            conn.socket.send_to(&pkt, &conn.remote)?;
                         }
-                        let amt = conn.last_packet.write_to_slice(buf)?;
-                        conn.socket.send_to(&buf[..amt], &conn.remote)?;
                         Some(Ok(()))
                     }
                     ResponseItem::Done => Some(Err(())),
@@ -319,13 +321,11 @@ impl<IO: IOAdapter + Default> TftpServerImpl<IO> {
         let socket = make_bound_socket(local_ip, None)?;
 
         // send packet back for all cases
-        {
-            let amt = reply_packet.write_to_slice(buf)?;
-            socket.send_to(&buf[..amt], &src)?;
-        }
+        let amt = reply_packet.write_to_slice(buf)?;
+        socket.send_to(&buf[..amt], &src)?;
 
         if let Some(xfer) = xfer {
-            self.create_connection(new_conn_token, socket, xfer, reply_packet, src)?;
+            self.create_connection(new_conn_token, socket, xfer, &buf[..amt], src)?;
         }
 
         Ok(())
@@ -358,22 +358,25 @@ impl<IO: IOAdapter + Default> TftpServerImpl<IO> {
             }
         };
 
+        let mut sent_packets = vec![];
         for item in response {
             match item {
                 ResponseItem::Done => break,
                 ResponseItem::Packet(packet) => {
-                    conn.last_packet = packet;
+                    let amt = packet.write_to_slice(buf)?;
+                    let sent = Vec::from(&buf[..amt]);
+                    conn.socket.send_to(&sent, &conn.remote)?;
+                    sent_packets.push(sent);
                 }
                 ResponseItem::RepeatLast(count) => {
-                    if count != 1 {
-                        error!("cannot repeat more than last packet");
+                    let skipped = conn.last_packets.len().saturating_sub(count);
+                    for pkt in conn.last_packets.iter().skip(skipped) {
+                        conn.socket.send_to(&pkt, &conn.remote)?;
                     }
                 }
             }
-
-            let amt = conn.last_packet.write_to_slice(buf)?;
-            conn.socket.send_to(&buf[..amt], &conn.remote)?;
         }
+        conn.last_packets = sent_packets;
 
         Ok(())
     }
