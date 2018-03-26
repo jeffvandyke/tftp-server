@@ -6,6 +6,7 @@ use std::path::{Component, Path, PathBuf};
 use std::time::Duration;
 
 #[derive(Debug, PartialEq)]
+#[cfg(test)]
 pub enum TftpResult {
     /// Indicates the packet should be sent back to the client,
     /// and the transfer may continue
@@ -21,6 +22,7 @@ pub enum TftpResult {
     /// Indicates an error encountered while processing the packet
     Err(TftpError),
 }
+#[cfg(test)]
 use self::TftpResult::{Done, Repeat, Reply};
 
 #[derive(Debug, PartialEq)]
@@ -295,6 +297,7 @@ impl<IO: IOAdapter> Transfer<IO> {
 
     /// Call this to indicate that the timeout since the last received packet has expired
     /// This may return some packets to (re)send or may terminate the transfer
+    #[cfg(test)]
     pub fn timeout_expired(&mut self) -> TftpResult {
         match self.timeout_expired2() {
             ResponseItem::RepeatLast(1) => Repeat,
@@ -352,6 +355,7 @@ impl<IO: IOAdapter> Transfer<IO> {
     /// and all future calls to rx will also return `TftpResult::Done`
     ///
     /// Transfer completion can be checked via `Transfer::is_done()`
+    #[cfg(test)]
     pub fn rx(&mut self, packet: Packet) -> TftpResult {
         match self.rx2(packet) {
             Err(e) => TftpResult::Err(e),
@@ -359,6 +363,7 @@ impl<IO: IOAdapter> Transfer<IO> {
         }
     }
 
+    #[cfg(test)]
     fn response_to_result(mut resp: Response) -> TftpResult {
         let first = resp.next().unwrap();
         let second = resp.next();

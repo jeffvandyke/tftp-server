@@ -251,17 +251,22 @@ impl<IO: IOAdapter + Default> TftpServerImpl<IO> {
 
         for token in tokens {
             let status = if let Some(ref mut conn) = self.connections.get_mut(&token) {
-                match conn.transfer.timeout_expired() {
-                    TftpResult::Repeat => {
+                match conn.transfer.timeout_expired2() {
+                    ResponseItem::Packet(packet) => {
+                        conn.last_packet = packet;
                         let amt = conn.last_packet.write_to_slice(buf)?;
                         conn.socket.send_to(&buf[..amt], &conn.remote)?;
                         Some(Ok(()))
                     }
-                    TftpResult::Done(None) => Some(Err(())),
-                    e => {
-                        error!("unhandled timeout response: {:?}", e);
-                        Some(Err(()))
+                    ResponseItem::RepeatLast(count) => {
+                        if count != 1 {
+                            error!("cannot repeat more than last packet");
+                        }
+                        let amt = conn.last_packet.write_to_slice(buf)?;
+                        conn.socket.send_to(&buf[..amt], &conn.remote)?;
+                        Some(Ok(()))
                     }
+                    ResponseItem::Done => Some(Err(())),
                 }
             } else {
                 None
