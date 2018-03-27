@@ -6,26 +6,6 @@ use std::path::{Component, Path, PathBuf};
 use std::time::Duration;
 
 #[derive(Debug, PartialEq)]
-#[cfg(test)]
-pub enum TftpResult {
-    /// Indicates the packet should be sent back to the client,
-    /// and the transfer may continue
-    Reply(Packet),
-
-    /// Signals the calling code that it should resend the last packet
-    Repeat,
-
-    /// Indicates that the packet (if any) should be sent back to the client,
-    /// and the transfer is considered terminated
-    Done(Option<Packet>),
-
-    /// Indicates an error encountered while processing the packet
-    Err(TftpError),
-}
-#[cfg(test)]
-use self::TftpResult::{Done, Repeat, Reply};
-
-#[derive(Debug, PartialEq)]
 pub enum TftpError {
     /// The is already running and cannot be restarted
     TransferAlreadyRunning,
@@ -339,29 +319,7 @@ impl<IO: IOAdapter> Transfer<IO> {
     /// and all future calls to rx will also return `TftpResult::Done`
     ///
     /// Transfer completion can be checked via `Transfer::is_done()`
-    #[cfg(test)]
-    pub fn rx(&mut self, packet: Packet) -> TftpResult {
-        match self.rx2(packet) {
-            Err(e) => TftpResult::Err(e),
-            Ok(resp) => Self::response_to_result(resp),
-        }
-    }
-
-    #[cfg(test)]
-    fn response_to_result(mut resp: Response) -> TftpResult {
-        let first = resp.next().unwrap();
-        let second = resp.next();
-        use self::ResponseItem::*;
-        match (first, second) {
-            (RepeatLast(1), _) => Repeat,
-            (Packet(p), None) => Reply(p),
-            (Packet(p), Some(Done)) => TftpResult::Done(Some(p)),
-            (Done, _) => TftpResult::Done(None),
-            (a, b) => panic!("unhandled pattern: {:?} {:?}", a, b),
-        }
-    }
-
-    pub fn rx2(&mut self, packet: Packet) -> Result<Response, TftpError> {
+    pub fn rx(&mut self, packet: Packet) -> Result<Response, TftpError> {
         if self.is_done() {
             return Ok(ResponseItem::Done.into());
         }

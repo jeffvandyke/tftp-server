@@ -350,7 +350,7 @@ impl<IO: IOAdapter + Default> TftpServerImpl<IO> {
         }
         let packet = Packet::read(&buf[..amt])?;
 
-        let response = match conn.transfer.rx2(packet) {
+        let response = match conn.transfer.rx(packet) {
             Ok(resp) => resp,
             Err(e) => {
                 error!("{:?}", e);
