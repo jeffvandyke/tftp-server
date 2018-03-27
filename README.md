@@ -8,7 +8,7 @@ Summary
 * Usable as both binary and library
 * 100% safe code, no `unsafe` usage
 * Well tested, including error cases
-* Implements (some for now) RFCs describing extensions to the TFTP protocol
+* Implements the RFCs describing extensions to the TFTP protocol
 
 Building and running the server
 -------------------------------
@@ -62,7 +62,7 @@ The following TFTP extension RFCs are implemented:
 * [RFC 2347: TFTP Option Extension](https://tools.ietf.org/html/rfc2347)
 * [RFC 2348: TFTP Blocksize Option](https://tools.ietf.org/html/rfc2348)
 * [RFC 2349: TFTP Timeout Interval and Transfer Size Options](https://tools.ietf.org/html/rfc2349)
-* (Not yet implemented) [RFC 7440: TFTP Windowsize Option](https://tools.ietf.org/html/rfc7440)
+* [RFC 7440: TFTP Windowsize Option](https://tools.ietf.org/html/rfc7440)
 
 
 Logging and Testing
@@ -96,7 +96,7 @@ TODOs
 * [ ] CLI switches for logging
 * [ ] running control (ability to stop server hard or soft)
 * [ ] limit accepted blocksize to stack MSS (smaller on ipv4)
-* [ ] complete implementation of all option extension RFCs
+* [x] complete implementation of all option extension RFCs
 * [ ] redo packets as in-place buffer references to avoid copying memory
 * [ ] redo integration tests to run them with harness
 * [ ] make proto tests more orthogonal
