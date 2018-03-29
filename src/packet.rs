@@ -430,7 +430,7 @@ mod tests {
     }
 
     macro_rules! packet_enc_dec_test {
-        ($name: ident, $packet: expr) => {
+        ($name:ident, $packet:expr) => {
             #[test]
             fn $name() {
                 let bytes = $packet.clone().into_bytes();

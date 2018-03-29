@@ -189,7 +189,7 @@ impl<IO: IOAdapter> TftpServerProto<IO> {
             Transfer::<IO>::new_read(fread, meta, options)
         };
 
-        (xfer, Ok(packet.into()))
+        (xfer, Ok(packet))
     }
 }
 
@@ -308,7 +308,7 @@ impl<IO: IOAdapter> Transfer<IO> {
         match *self {
             Transfer::Rx(TransferRx { ref meta, .. })
             | Transfer::Tx(TransferTx { ref meta, .. }) => {
-                meta.timeout.map(|s| Duration::from_secs(s as u64))
+                meta.timeout.map(|s| Duration::from_secs(u64::from(s)))
             }
             _ => None,
         }

@@ -264,7 +264,7 @@ impl<IO: IOAdapter + Default> TftpServerImpl<IO> {
                     ResponseItem::RepeatLast(count) => {
                         let skipped = conn.last_packets.len().saturating_sub(count);
                         for pkt in conn.last_packets.iter().skip(skipped) {
-                            conn.socket.send_to(&pkt, &conn.remote)?;
+                            conn.socket.send_to(pkt, &conn.remote)?;
                         }
                         Some(Ok(()))
                     }
@@ -371,7 +371,7 @@ impl<IO: IOAdapter + Default> TftpServerImpl<IO> {
                 ResponseItem::RepeatLast(count) => {
                     let skipped = conn.last_packets.len().saturating_sub(count);
                     for pkt in conn.last_packets.iter().skip(skipped) {
-                        conn.socket.send_to(&pkt, &conn.remote)?;
+                        conn.socket.send_to(pkt, &conn.remote)?;
                     }
                 }
             }
