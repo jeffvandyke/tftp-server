@@ -9,9 +9,9 @@ use tftp_proto::*;
 use packet::TransferMode::*;
 
 macro_rules! assert_packets {
-    ( $e:expr => [ $($value:expr,)* ] ) => {
+    ( $e:expr => [ $($list:tt)* ] ) => {
         if let Ok(mut packs) = $e {
-            $( assert_eq!(packs.next(), Some($value)); )*
+            assert_packets_list!(packs.next(), $($list)*);
             assert_eq!(packs.next(), None);
         } else {
             panic!("assertion failed: `{:?}` does not match `{}`",
@@ -25,6 +25,19 @@ macro_rules! assert_packets {
                 $e, stringify!(Err($pat)))
         }
     };
+}
+
+macro_rules! assert_packets_list {
+    ( $code:expr, match $pat:pat, $($tail:tt)* ) => {
+        assert_matches!($code, Some($pat));
+        assert_packets_list!($code, $($tail)*);
+    };
+    ( $code:expr, $val:expr, $($tail:tt)* ) => {
+        assert_eq!($code, Some($val));
+        assert_packets_list!($code, $($tail)*);
+    };
+    ( $code:expr, ) => {};
+    ( $code:expr ) => {};
 }
 
 #[test]
@@ -207,7 +220,6 @@ fn rrq_small_file_ack_wrong_block() {
     assert_packets!(xfer.rx(Packet::ACK(0)) => [ResponseItem::Done,]);
 }
 
-#[ignore]
 #[test]
 fn rrq_small_file_reply_with_data_illegal() {
     let (mut server, file, mut file_bytes) = rrq_fixture(132);
@@ -224,18 +236,15 @@ fn rrq_small_file_reply_with_data_illegal() {
         })
     );
     let mut xfer = xfer.unwrap();
-    /*
-    assert_matches!(
+    assert_packets!(
         xfer.rx(Packet::DATA {
             data: vec![],
             block_num: 1,
-        }),
-        Done(Some(Packet::ERROR {
-            code: ErrorCode::IllegalTFTP,
-            ..
-        }))
+        }) => [
+            match ResponseItem::Packet(Packet::ERROR { code: ErrorCode::IllegalTFTP, ..  }),
+            ResponseItem::Done,
+        ]
     );
-*/
     assert_packets!(xfer.rx(Packet::ACK(0)) => [ResponseItem::Done,]);
 }
 
@@ -510,7 +519,6 @@ fn wrq_1_block_file() {
     );
 }
 
-#[ignore]
 #[test]
 fn wrq_small_file_reply_with_ack_illegal() {
     let (mut server, file, mut file_bytes) = wrq_fixture(512);
@@ -526,15 +534,12 @@ fn wrq_small_file_reply_with_ack_illegal() {
             ResponseItem::Packet(Packet::ACK(1)),
         ]
     );
-    /*
-    assert_matches!(
-        xfer.rx(Packet::ACK(3)),
-        Done(Some(Packet::ERROR {
-            code: ErrorCode::IllegalTFTP,
-            ..
-        }))
+    assert_packets!(
+        xfer.rx(Packet::ACK(3)) => [
+            match ResponseItem::Packet(Packet::ERROR { code: ErrorCode::IllegalTFTP, ..  }),
+            ResponseItem::Done,
+        ]
     );
-*/
     assert_packets!(
         xfer.rx(Packet::DATA { block_num: 2, data: vec![], }) => [
             ResponseItem::Done,
@@ -714,7 +719,6 @@ fn rrq_io_error() {
     assert_matches!(xfer, None);
 }
 
-#[ignore]
 #[test]
 fn rrq_io_error_during() {
     let fio = FailIO { bytes: 520 };
@@ -726,11 +730,13 @@ fn rrq_io_error_during() {
     });
     assert_matches!(res, Ok(Packet::DATA { .. }));
     let mut xfer = xfer.unwrap();
-    //assert_matches!(xfer.rx(Packet::ACK(1)), Done(Some(Packet::ERROR { .. })));
+    assert_packets!(xfer.rx(Packet::ACK(1)) => [
+        match ResponseItem::Packet(Packet::ERROR { .. }),
+        ResponseItem::Done,
+    ]);
     assert!(xfer.is_done());
 }
 
-#[ignore]
 #[test]
 fn wrq_io_error() {
     let fio = FailIO { bytes: 0 };
@@ -742,15 +748,15 @@ fn wrq_io_error() {
     });
     assert_matches!(res, Ok(Packet::ACK(0)));
     let mut xfer = xfer.unwrap();
-    /*
-    assert_matches!(
+    assert_packets!(
         xfer.rx(Packet::DATA {
             block_num: 1,
             data: vec![0; 512],
-        }),
-        Done(Some(Packet::ERROR { .. }))
+        }) => [
+            match ResponseItem::Packet(Packet::ERROR { .. }),
+            ResponseItem::Done,
+        ]
     );
-*/
     assert!(xfer.is_done());
 }
 
