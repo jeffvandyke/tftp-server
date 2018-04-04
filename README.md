@@ -10,49 +10,32 @@ Summary
 * Well tested, including error cases
 * Implements the RFCs describing extensions to the TFTP protocol
 
-Building and running the server
+Building and running
 -------------------------------
 
-To build the server, simply run `cargo build`. Once compiled you can run the server without arguments, in which case it will pick a random port on the loopback address and serve from the current directory:
+Simply use `cargo build`, and `cargo run` respectively. The server will start and serve from/into the current directory.
+
+__Note__: By default the server listens on port 69 (as per [RFC1350](https://tools.ietf.org/html/rfc1350)), and that usually requires root privileges.
+
+In order to run it on a different port, you can specify `--address`:
 
 ```
-$ ./target/debug/tftp_server
-Server created at address: V4(127.0.0.1:61204)
+$ ./target/debug/tftp_server --address 0.0.0.0:1234
 ```
 
-In this example, the port number picked was 61204.
+This will instead listen on port 1234.
 
-You can also explicitly specify the address (and optionally the port) on which it will listen
-
-```
-$ ./target/debug/tftp_server --address 192.168.0.54
-Server created at address: V4(192.168.0.54:43604)
-```
-
-or
-
-```
-$ ./target/debug/tftp_server --address 192.168.0.54:35000
-Server created at address: V4(192.168.0.54:35000)
-```
-
-If the server cannot bind to the given address:port (or if it cannot find a random port for the address) then it will panic with an IoError.
-```
-$ ./target/debug/tftp_server --address 127.0.0.1:20
-thread 'main' panicked at 'Error creating server: IoError(Error { repr: Os { code: 13, message: "Permission denied" } })', ../src/libcore/result.rs:799
-note: Run with `RUST_BACKTRACE=1` for a backtrace.
-```
+To bind to a random port you can leave out the port number and only specify the address
 
 
 Features
 --------
 All features are implemented in the library. The binary target is a only an argument-parsing thin wrapper over it for direct usage conveninence.
 
-Available features:
 * `-a` or `--address` to specify an address[:port] to listen on (multiple supported)
 * `-r` will make the server treat the served directory as read-only (it will reject all write requests)
 * `-d` or `--directory` specifies the directory to serve from (the given path will be prepended to all requested paths)
-* `-t` or `--timeout` specifies the timeout (in seconds) for idle connections
+* `-t` or `--timeout` specifies the default timeout (in seconds) for idle connections
 * see TODO section below
 
 
@@ -68,7 +51,9 @@ The following TFTP extension RFCs are implemented:
 Logging and Testing
 -------------------
 
-You can also run the server with logging enabled. To do this add `RUST_LOG=tftp_server=info` before the command.
+To run all tests, use `cargo test`.
+
+You can also run the server (or tests) with logging enabled. To do this add `RUST_LOG=tftp_server=info` before the command.
 For example:
 
 ```
@@ -77,12 +62,6 @@ $ RUST_LOG=tftp_server=info ./target/debug/tftp_server
 
 This will run the server with logging enabled so that you can inspect the program's behavior.
 
-To run the tests you can just run `cargo test`. However if you want to show the program's output during the test,
-you have to turn on logging. To run tests with logging enabled run:
-
-```
-$ RUST_LOG=tftp_server=info cargo test
-```
 
 TODOs
 -----

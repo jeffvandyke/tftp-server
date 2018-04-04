@@ -73,8 +73,8 @@ fn main() {
         })
         .unwrap_or_else(|| {
             vec![
-                (IpAddr::from([127, 0, 0, 1]), None),
-                (IpAddr::from([0; 16]), None),
+                (IpAddr::from([127, 0, 0, 1]), Some(69)),
+                (IpAddr::from([0; 16]), Some(69)),
             ]
         });
 
