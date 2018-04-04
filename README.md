@@ -82,3 +82,4 @@ TODOs
 * [ ] test that transfer size is enforced on Rx
 * [ ] maybe eventually split off proto handling into its own crate
 * [ ] implement congestion control when using window size
+* [ ] complete Response implementation to make it efficient instead of storing a Vec<ResponseItem>
