@@ -4,3 +4,4 @@ Cargo.lock
 *.bk
 *.iml
 .*.swp
+.vscode
