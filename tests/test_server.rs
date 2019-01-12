@@ -1,8 +1,4 @@
-extern crate env_logger;
-extern crate tftp_server;
-
-#[macro_use]
-extern crate assert_matches;
+use assert_matches::*;
 
 use std::borrow::BorrowMut;
 use std::fs::{self, File};
@@ -16,7 +12,7 @@ use tftp_server::server::{Result, ServerConfig, TftpServer};
 use tftp_server::packet::TransferMode::*;
 
 mod misc_utils;
-use misc_utils::*;
+use crate::misc_utils::*;
 
 /// Starts the server in a new thread.
 pub fn start_server() -> Result<Vec<SocketAddr>> {
@@ -151,7 +147,8 @@ impl WritingTransfer {
 
         // Read and send data packet
         let mut data = Vec::with_capacity(self.blocksize as usize);
-        let res = self.file
+        let res = self
+            .file
             .borrow_mut()
             .take(self.blocksize)
             .read_to_end(&mut data);

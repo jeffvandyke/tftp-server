@@ -1,5 +1,5 @@
+pub use crate::options::*;
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
-pub use options::*;
 use std::io::Write;
 use std::{io, result, str};
 
@@ -91,7 +91,8 @@ impl ErrorCode {
             ErrorCode::FileExists => "File already exists.",
             ErrorCode::NoUser => "No such user.",
             ErrorCode::BadOption => "Bad option.",
-        }).to_string()
+        })
+        .to_string()
     }
 }
 
@@ -404,6 +405,7 @@ fn oack_packet_bytes(options: &[TftpOption], buf: &mut Write) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use assert_matches::*;
 
     #[test]
     fn wrq_max_size() {

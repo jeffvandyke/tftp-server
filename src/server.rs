@@ -1,14 +1,15 @@
+use crate::packet::{ErrorCode, Packet, PacketErr, MAX_PACKET_SIZE};
+use crate::tftp_proto::*;
+use log::*;
 use mio::net::UdpSocket;
 use mio::*;
 use mio_more::timer::{Timeout, Timer, TimerError};
-use packet::{ErrorCode, Packet, PacketErr, MAX_PACKET_SIZE};
 use std::collections::HashMap;
 use std::io;
 use std::net::{self, IpAddr, SocketAddr};
 use std::path::PathBuf;
 use std::result;
 use std::time::Duration;
-use tftp_proto::*;
 
 /// The token used by the timer.
 const TIMER: Token = Token(0);
@@ -169,14 +170,17 @@ impl<IO: IOAdapter + Default> TftpServerImpl<IO> {
     /// Returns a new token created from incrementing a counter.
     fn generate_token(&mut self) -> Token {
         use std::usize;
-        if self.connections
+        if self
+            .connections
             .len()
             .saturating_add(self.server_sockets.len())
-            .saturating_add(1 /* timer token */) == usize::MAX
+            .saturating_add(1 /* timer token */)
+            == usize::MAX
         {
             panic!("no more tokens, but impressive amount of memory");
         }
-        while self.new_token == TIMER || self.server_sockets.contains_key(&self.new_token)
+        while self.new_token == TIMER
+            || self.server_sockets.contains_key(&self.new_token)
             || self.connections.contains_key(&self.new_token)
         {
             self.new_token.0 = self.new_token.0.wrapping_add(1);
@@ -199,7 +203,8 @@ impl<IO: IOAdapter + Default> TftpServerImpl<IO> {
     fn reset_timeout(&mut self, token: &Token) -> Result<()> {
         if let Some(ref mut conn) = self.connections.get_mut(token) {
             self.timer.cancel_timeout(&conn.timeout);
-            conn.timeout = self.timer
+            conn.timeout = self
+                .timer
                 .set_timeout(conn.transfer.timeout().unwrap_or(self.timeout), *token)?;
         }
         Ok(())
@@ -214,7 +219,8 @@ impl<IO: IOAdapter + Default> TftpServerImpl<IO> {
         packet: &[u8],
         remote: SocketAddr,
     ) -> Result<()> {
-        let timeout = self.timer
+        let timeout = self
+            .timer
             .set_timeout(transfer.timeout().unwrap_or(self.timeout), token)?;
         self.poll.register(
             &socket,

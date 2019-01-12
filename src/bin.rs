@@ -1,16 +1,10 @@
-extern crate env_logger;
-extern crate tftp_server;
-
-#[macro_use]
-extern crate clap;
-
 use std::net::*;
 use std::path::Path;
 use std::str::FromStr;
 use std::time::Duration;
 use tftp_server::server::{ServerConfig, TftpServer};
 
-use clap::{App, Arg};
+use clap::{crate_version, App, Arg};
 
 fn main() {
     env_logger::init();
@@ -69,7 +63,8 @@ fn main() {
                 } else {
                     panic!("error parsing argument \"{}\" as ip address", s);
                 }
-            }).collect()
+            })
+            .collect()
         })
         .unwrap_or_else(|| {
             vec![

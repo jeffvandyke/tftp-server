@@ -1,12 +1,14 @@
-use packet::{ErrorCode, Packet, TftpOption};
+use assert_matches::*;
+
+use crate::packet::{ErrorCode, Packet, TftpOption};
+use crate::tftp_proto::*;
 use std::collections::{HashMap, HashSet};
 use std::io::{self, Read, Write};
 use std::iter::Take;
 use std::path::Path;
 use std::time::Duration;
-use tftp_proto::*;
 
-use packet::TransferMode::*;
+use crate::packet::TransferMode::*;
 
 macro_rules! assert_packets {
     ( $e:expr => [ $($list:tt)* ] ) => {
@@ -817,11 +819,9 @@ fn policy_remap_directory() {
     assert!(proxy.open_read("the_new_path/file_a".as_ref()).is_err());
     assert!(proxy.open_read("file_a".as_ref()).is_ok());
 
-    assert!(
-        proxy
-            .create_new("the_new_path/file_b".as_ref(), None)
-            .is_err()
-    );
+    assert!(proxy
+        .create_new("the_new_path/file_b".as_ref(), None)
+        .is_err());
     assert!(proxy.create_new("file_b".as_ref(), None).is_ok());
 }
 

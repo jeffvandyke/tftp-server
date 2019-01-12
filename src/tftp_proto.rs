@@ -1,4 +1,4 @@
-use packet::{ErrorCode, Packet, TftpOption};
+use crate::packet::{ErrorCode, Packet, TftpOption};
 use sna::SerialNumber;
 use std::fs::{self, File};
 use std::io::{self, Read, Write};
@@ -134,7 +134,7 @@ impl<IO: IOAdapter> TftpServerProto<IO> {
             } => (filename, mode, options, true),
             _ => return (None, Err(TftpError::NotIniatingPacket)),
         };
-        use packet::TransferMode;
+        use crate::packet::TransferMode;
         match mode {
             TransferMode::Octet => {}
             TransferMode::Mail => return (None, Ok(ErrorCode::NoUser.into())),
@@ -337,7 +337,8 @@ impl<IO: IOAdapter> Transfer<IO> {
                 Ok(vec![
                     ResponseItem::Packet(ErrorCode::IllegalTFTP.into()),
                     ResponseItem::Done,
-                ].into())
+                ]
+                .into())
             }
 
             (Packet::ERROR { .. }, _) => {
@@ -373,7 +374,8 @@ impl<R: Read> TransferTx<R> {
                     msg: "Incorrect block num in ACK".to_owned(),
                 }),
                 ResponseItem::Done,
-            ].into();
+            ]
+            .into();
         }
 
         let window_start = self.expected_block.0.wrapping_sub(ack_block.0);
@@ -399,7 +401,8 @@ impl<R: Read> TransferTx<R> {
 
     fn read_step(&mut self) -> Result<Packet, Packet> {
         let mut v = Vec::with_capacity(self.meta.blocksize as usize);
-        if self.fread
+        if self
+            .fread
             .by_ref()
             .take(u64::from(self.meta.blocksize))
             .read_to_end(&mut v)
@@ -428,7 +431,8 @@ impl<W: Write> TransferRx<W> {
                     msg: "Data packet lost".to_owned(),
                 }),
                 ResponseItem::Done,
-            ].into()
+            ]
+            .into()
         } else {
             if self.last_recv + 1 != block {
                 // out of sequence
@@ -443,13 +447,15 @@ impl<W: Write> TransferRx<W> {
                 return vec![
                     ResponseItem::Packet(ErrorCode::NotDefined.into()),
                     ResponseItem::Done,
-                ].into();
+                ]
+                .into();
             }
             if data.len() < self.meta.blocksize as usize {
                 vec![
                     ResponseItem::Packet(Packet::ACK(block.0)),
                     ResponseItem::Done,
-                ].into()
+                ]
+                .into()
             } else if block == self.expected_block {
                 self.expected_block += self.meta.window_size;
                 ResponseItem::Packet(Packet::ACK(block.0)).into()
@@ -489,10 +495,12 @@ impl<IO: IOAdapter> IOAdapter for IOPolicyProxy<IO> {
     type R = IO::R;
     type W = IO::W;
     fn open_read(&self, file: &Path) -> io::Result<(Self::R, Option<u64>)> {
-        if file.is_absolute() || file.components().any(|c| match c {
-            Component::RootDir | Component::ParentDir => true,
-            _ => false,
-        }) {
+        if file.is_absolute()
+            || file.components().any(|c| match c {
+                Component::RootDir | Component::ParentDir => true,
+                _ => false,
+            })
+        {
             Err(io::Error::new(
                 io::ErrorKind::PermissionDenied,
                 "cannot read",
@@ -506,10 +514,13 @@ impl<IO: IOAdapter> IOAdapter for IOPolicyProxy<IO> {
     }
 
     fn create_new(&mut self, file: &Path, len: Option<u64>) -> io::Result<Self::W> {
-        if self.policy.readonly || file.is_absolute() || file.components().any(|c| match c {
-            Component::RootDir | Component::ParentDir => true,
-            _ => false,
-        }) {
+        if self.policy.readonly
+            || file.is_absolute()
+            || file.components().any(|c| match c {
+                Component::RootDir | Component::ParentDir => true,
+                _ => false,
+            })
+        {
             Err(io::Error::new(
                 io::ErrorKind::PermissionDenied,
                 "cannot write",
