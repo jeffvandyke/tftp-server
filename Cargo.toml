@@ -34,3 +34,6 @@ path = "src/bin.rs"
 name = "tftp-server-tests"
 path = "tests/test_server.rs"
 harness = false
+
+[profile.release]
+lto = true

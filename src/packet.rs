@@ -203,7 +203,7 @@ impl Packet {
         Ok(sl.len() - left)
     }
 
-    fn write_bytes_to(&self, buf: &mut Write) -> Result<()> {
+    fn write_bytes_to(&self, buf: &mut impl Write) -> Result<()> {
         match *self {
             Packet::RRQ {
                 ref filename,
@@ -357,7 +357,7 @@ fn rw_packet_bytes(
     filename: &str,
     mode: TransferMode,
     options: &[TftpOption],
-    buf: &mut Write,
+    buf: &mut impl Write,
 ) -> Result<()> {
     buf.write_u16::<BigEndian>(packet as u16)?;
     write!(buf, "{}\0{}\0", filename, mode)?;
@@ -369,7 +369,7 @@ fn rw_packet_bytes(
     Ok(())
 }
 
-fn data_packet_bytes(block_num: u16, data: &[u8], buf: &mut Write) -> Result<()> {
+fn data_packet_bytes(block_num: u16, data: &[u8], buf: &mut impl Write) -> Result<()> {
     buf.write_u16::<BigEndian>(OpCode::DATA as u16)?;
     buf.write_u16::<BigEndian>(block_num)?;
     buf.write_all(data)?;
@@ -377,14 +377,14 @@ fn data_packet_bytes(block_num: u16, data: &[u8], buf: &mut Write) -> Result<()>
     Ok(())
 }
 
-fn ack_packet_bytes(block_num: u16, buf: &mut Write) -> Result<()> {
+fn ack_packet_bytes(block_num: u16, buf: &mut impl Write) -> Result<()> {
     buf.write_u16::<BigEndian>(OpCode::ACK as u16)?;
     buf.write_u16::<BigEndian>(block_num)?;
 
     Ok(())
 }
 
-fn error_packet_bytes(code: ErrorCode, msg: &str, buf: &mut Write) -> Result<()> {
+fn error_packet_bytes(code: ErrorCode, msg: &str, buf: &mut impl Write) -> Result<()> {
     buf.write_u16::<BigEndian>(OpCode::ERROR as u16)?;
     buf.write_u16::<BigEndian>(code as u16)?;
     write!(buf, "{}\0", msg)?;
@@ -392,7 +392,7 @@ fn error_packet_bytes(code: ErrorCode, msg: &str, buf: &mut Write) -> Result<()>
     Ok(())
 }
 
-fn oack_packet_bytes(options: &[TftpOption], buf: &mut Write) -> Result<()> {
+fn oack_packet_bytes(options: &[TftpOption], buf: &mut impl Write) -> Result<()> {
     buf.write_u16::<BigEndian>(OpCode::OACK as u16)?;
 
     for opt in options {
