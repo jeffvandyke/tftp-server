@@ -11,7 +11,7 @@ pub enum TftpError {
     TransferAlreadyRunning,
 
     /// The received packet type cannot be used to initiate a transfer
-    NotIniatingPacket,
+    NotInitiatingPacket,
 }
 
 /// Trait used to inject filesystem IO handling into a server.
@@ -132,7 +132,7 @@ impl<IO: IOAdapter> TftpServerProto<IO> {
                 mode,
                 options,
             } => (filename, mode, options, true),
-            _ => return (None, Err(TftpError::NotIniatingPacket)),
+            _ => return (None, Err(TftpError::NotInitiatingPacket)),
         };
         use crate::packet::TransferMode;
         match mode {

@@ -47,7 +47,7 @@ fn initial_ack_err() {
     let iof = TestIoFactory::new();
     let mut server = TftpServerProto::new(iof, Default::default());
     let (xfer, res) = server.rx_initial(Packet::ACK(0));
-    assert_eq!(res, Err(TftpError::NotIniatingPacket));
+    assert_eq!(res, Err(TftpError::NotInitiatingPacket));
     assert!(xfer.is_none());
 }
 
@@ -59,7 +59,7 @@ fn initial_data_err() {
         block_num: 1,
         data: vec![],
     });
-    assert_eq!(res, Err(TftpError::NotIniatingPacket));
+    assert_eq!(res, Err(TftpError::NotInitiatingPacket));
     assert!(xfer.is_none());
 }
 
