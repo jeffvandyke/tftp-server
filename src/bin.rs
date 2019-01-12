@@ -76,7 +76,8 @@ fn main() {
     let timeout = matches
         .value_of(arg_timeout)
         .map(|s| {
-            let n = u64::from_str(s).expect(&format!("error parsing \"{}\" as timeout", s));
+            let n =
+                u64::from_str(s).unwrap_or_else(|_| panic!("error parsing \"{}\" as timeout", s));
             if n == 0 {
                 panic!("timeout may not be 0 seconds")
             }

@@ -35,7 +35,6 @@ pub fn start_server() -> Result<Vec<SocketAddr>> {
         if let Err(e) = server.run() {
             println!("Error with server: {:?}", e);
         }
-        ()
     });
 
     Ok(addrs)
@@ -111,7 +110,7 @@ impl WritingTransfer {
         }
         let xfer = Self {
             socket: create_socket(Some(Duration::from_secs(TIMEOUT))).unwrap(),
-            file: File::open(local_file).expect(&format!("cannot open {}", local_file)),
+            file: File::open(local_file).unwrap_or_else(|_| panic!("cannot open {}", local_file)),
             block_num: 0,
             remote: None,
             blocksize,
@@ -123,10 +122,12 @@ impl WritingTransfer {
         };
         xfer.socket
             .send_to(init_packet.to_bytes().unwrap().as_slice(), &server_addr)
-            .expect(&format!(
-                "cannot send initial packet {:?} to {:?}",
-                init_packet, server_addr
-            ));
+            .unwrap_or_else(|_| {
+                panic!(
+                    "cannot send initial packet {:?} to {:?}",
+                    init_packet, server_addr
+                )
+            });
         xfer
     }
 
@@ -162,10 +163,7 @@ impl WritingTransfer {
 
         self.socket
             .send_to(data_packet.to_bytes().unwrap().as_slice(), &src)
-            .expect(&format!(
-                "cannot send packet {:?} to {:?}",
-                data_packet, src
-            ));
+            .unwrap_or_else(|_| panic!("cannot send packet {:?} to {:?}", data_packet, src));
         Some(())
     }
 }
@@ -210,7 +208,8 @@ impl ReadingTransfer {
         }
         let xfer = Self {
             socket: create_socket(Some(Duration::from_secs(TIMEOUT))).unwrap(),
-            file: File::create(local_file).expect(&format!("cannot create {}", local_file)),
+            file: File::create(local_file)
+                .unwrap_or_else(|_| panic!("cannot create {}", local_file)),
             block_num: 1,
             remote: None,
             blocksize,
@@ -222,10 +221,12 @@ impl ReadingTransfer {
         };
         xfer.socket
             .send_to(init_packet.to_bytes().unwrap().as_slice(), &server_addr)
-            .expect(&format!(
-                "cannot send initial packet {:?} to {:?}",
-                init_packet, server_addr
-            ));
+            .unwrap_or_else(|_| {
+                panic!(
+                    "cannot send initial packet {:?} to {:?}",
+                    init_packet, server_addr
+                )
+            });
         xfer
     }
 
@@ -244,7 +245,7 @@ impl ReadingTransfer {
                 let ack_packet = Packet::ACK(0);
                 self.socket
                     .send_to(ack_packet.to_bytes().unwrap().as_slice(), &src)
-                    .expect(&format!("cannot send packet {:?} to {:?}", ack_packet, src));
+                    .unwrap_or_else(|_| panic!("cannot send packet {:?} to {:?}", ack_packet, src));
             }
             Packet::DATA { block_num, data } => {
                 assert_eq!(self.block_num, block_num);
@@ -255,7 +256,7 @@ impl ReadingTransfer {
                 let ack_packet = Packet::ACK(self.block_num);
                 self.socket
                     .send_to(ack_packet.to_bytes().unwrap().as_slice(), &src)
-                    .expect(&format!("cannot send packet {:?} to {:?}", ack_packet, src));
+                    .unwrap_or_else(|_| panic!("cannot send packet {:?} to {:?}", ack_packet, src));
 
                 self.block_num = self.block_num.wrapping_add(1);
 

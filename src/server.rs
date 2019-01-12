@@ -190,8 +190,8 @@ impl<IO: IOAdapter + Default> TftpServerImpl<IO> {
 
     /// Cancels a connection given the connection's token. It cancels the
     /// connection's timeout and deregisters the connection's socket from the event loop.
-    fn cancel_connection(&mut self, token: &Token) -> Result<()> {
-        if let Some(conn) = self.connections.remove(token) {
+    fn cancel_connection(&mut self, token: Token) -> Result<()> {
+        if let Some(conn) = self.connections.remove(&token) {
             info!("Closing connection with token {:?}", token);
             self.poll.deregister(&conn.socket)?;
             self.timer.cancel_timeout(&conn.timeout);
@@ -200,12 +200,12 @@ impl<IO: IOAdapter + Default> TftpServerImpl<IO> {
     }
 
     /// Resets a connection's timeout given the connection's token.
-    fn reset_timeout(&mut self, token: &Token) -> Result<()> {
-        if let Some(ref mut conn) = self.connections.get_mut(token) {
+    fn reset_timeout(&mut self, token: Token) -> Result<()> {
+        if let Some(ref mut conn) = self.connections.get_mut(&token) {
             self.timer.cancel_timeout(&conn.timeout);
             conn.timeout = self
                 .timer
-                .set_timeout(conn.transfer.timeout().unwrap_or(self.timeout), *token)?;
+                .set_timeout(conn.transfer.timeout().unwrap_or(self.timeout), token)?;
         }
         Ok(())
     }
@@ -281,8 +281,8 @@ impl<IO: IOAdapter + Default> TftpServerImpl<IO> {
             };
 
             match status {
-                Some(Ok(_)) => self.reset_timeout(&token)?,
-                Some(Err(_)) => self.cancel_connection(&token)?,
+                Some(Ok(_)) => self.reset_timeout(token)?,
+                Some(Err(_)) => self.cancel_connection(token)?,
                 _ => {}
             }
         }
@@ -338,7 +338,7 @@ impl<IO: IOAdapter + Default> TftpServerImpl<IO> {
     }
 
     fn handle_connection_packet(&mut self, token: Token, buf: &mut [u8]) -> Result<()> {
-        self.reset_timeout(&token)?;
+        self.reset_timeout(token)?;
         let conn = match self.connections.get_mut(&token) {
             Some(conn) => conn,
             None => {

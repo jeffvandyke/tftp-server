@@ -80,8 +80,8 @@ primitive_enum! (
 
 impl ErrorCode {
     /// Returns the string description of the error code.
-    pub fn to_string(&self) -> String {
-        (match *self {
+    pub fn to_string(self) -> String {
+        match self {
             ErrorCode::NotDefined => "Not defined, see error message (if any).",
             ErrorCode::FileNotFound => "File not found.",
             ErrorCode::AccessViolation => "Access violation.",
@@ -91,8 +91,8 @@ impl ErrorCode {
             ErrorCode::FileExists => "File already exists.",
             ErrorCode::NoUser => "No such user.",
             ErrorCode::BadOption => "Bad option.",
-        })
-        .to_string()
+        }
+        .to_owned()
     }
 }
 
