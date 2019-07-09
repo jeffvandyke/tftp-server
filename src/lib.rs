@@ -1,5 +1,5 @@
 #![deny(clippy::all)]
-#![warn(clippy::pedantic)]
+#![deny(clippy::pedantic)]
 
 mod options;
 pub mod packet;

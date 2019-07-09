@@ -105,7 +105,7 @@ pub enum ResponseItem {
 impl<IO: IOAdapter> TftpServerProto<IO> {
     /// Creates a new instance with the provided IOAdapter
     pub fn new(io: IO, cfg: IOPolicyCfg) -> Self {
-        TftpServerProto {
+        Self {
             io_proxy: IOPolicyProxy::new(io, cfg),
         }
     }
@@ -223,7 +223,7 @@ impl<IO: IOAdapter> Transfer<IO> {
         fread: IO::R,
         meta: TransferMeta,
         options: Vec<TftpOption>,
-    ) -> (Option<Transfer<IO>>, Packet) {
+    ) -> (Option<Self>, Packet) {
         let mut xfer = TransferTx {
             fread,
             expected_block: 0.into(),
@@ -246,7 +246,7 @@ impl<IO: IOAdapter> Transfer<IO> {
         fwrite: IO::W,
         meta: TransferMeta,
         options: Vec<TftpOption>,
-    ) -> (Option<Transfer<IO>>, Packet) {
+    ) -> (Option<Self>, Packet) {
         let xfer = TransferRx {
             fwrite,
             expected_block: meta.window_size.into(),

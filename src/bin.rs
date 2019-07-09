@@ -51,7 +51,8 @@ fn main() {
         )
         .get_matches();
 
-    let addrs = matches.values_of(arg_ip).map_or_else(|| {
+    let addrs = matches.values_of(arg_ip).map_or_else(
+        || {
             vec![
                 (IpAddr::from([127, 0, 0, 1]), Some(69)),
                 (IpAddr::from([0; 16]), Some(69)),
@@ -72,16 +73,13 @@ fn main() {
         },
     );
 
-    let timeout = matches
-        .value_of(arg_timeout)
-        .map_or(3, |s| {
-            let n =
-                u64::from_str(s).unwrap_or_else(|_| panic!("error parsing \"{}\" as timeout", s));
-            if n == 0 {
-                panic!("timeout may not be 0 seconds")
-            }
-            n
-        });
+    let timeout = matches.value_of(arg_timeout).map_or(3, |s| {
+        let n = u64::from_str(s).unwrap_or_else(|_| panic!("error parsing \"{}\" as timeout", s));
+        if n == 0 {
+            panic!("timeout may not be 0 seconds")
+        }
+        n
+    });
     let timeout = Duration::from_secs(timeout);
 
     let dir = matches.value_of(arg_dir).map(|dir| {

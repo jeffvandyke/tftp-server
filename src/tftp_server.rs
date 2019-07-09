@@ -1,4 +1,4 @@
-use crate::packet::{ErrorCode, Packet, Error as PacketError, MAX_PACKET_SIZE};
+use crate::packet::{Error as PacketError, ErrorCode, Packet, MAX_PACKET_SIZE};
 use crate::tftp_proto::*;
 use log::*;
 use mio::net::UdpSocket;
@@ -22,19 +22,19 @@ pub enum TftpError {
 }
 
 impl From<io::Error> for TftpError {
-    fn from(err: io::Error) -> TftpError {
+    fn from(err: io::Error) -> Self {
         TftpError::Io(err)
     }
 }
 
 impl From<PacketError> for TftpError {
-    fn from(err: PacketError) -> TftpError {
+    fn from(err: PacketError) -> Self {
         TftpError::Packet(err)
     }
 }
 
 impl From<TimerError> for TftpError {
-    fn from(err: TimerError) -> TftpError {
+    fn from(err: TimerError) -> Self {
         TftpError::Timer(err)
     }
 }
@@ -339,13 +339,13 @@ impl<IO: IOAdapter + Default> ServerImpl<IO> {
 
     fn handle_connection_packet(&mut self, token: Token, buf: &mut [u8]) -> Result<()> {
         self.reset_timeout(token)?;
-        let conn = match self.connections.get_mut(&token) {
-            Some(conn) => conn,
-            None => {
-                error!("No connection with token {:?}", token);
-                return Ok(());
-            }
+        let conn = if let Some(conn) = self.connections.get_mut(&token) {
+            conn
+        } else {
+            error!("No connection with token {:?}", token);
+            return Ok(());
         };
+
         let (amt, src) = conn.socket.recv_from(buf)?;
 
         if conn.remote != src {
