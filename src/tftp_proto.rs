@@ -121,6 +121,7 @@ impl<IO: IOAdapter> TftpServerProto<IO> {
         &mut self,
         packet: Packet,
     ) -> (Option<Transfer<IO>>, Result<Packet, TftpError>) {
+        use crate::packet::TransferMode;
         let (filename, mode, mut options, is_write) = match packet {
             Packet::RRQ {
                 filename,
@@ -134,7 +135,7 @@ impl<IO: IOAdapter> TftpServerProto<IO> {
             } => (filename, mode, options, true),
             _ => return (None, Err(TftpError::NotInitiatingPacket)),
         };
-        use crate::packet::TransferMode;
+
         match mode {
             TransferMode::Octet => {}
             TransferMode::Mail => return (None, Ok(ErrorCode::NoUser.into())),
@@ -148,7 +149,7 @@ impl<IO: IOAdapter> TftpServerProto<IO> {
             timed_out: false,
             window_size: 1,
         };
-        let mut tsize = None;
+        let mut transfer_size = None;
 
         let mut options = options
             .drain(..)
@@ -157,7 +158,7 @@ impl<IO: IOAdapter> TftpServerProto<IO> {
                     TftpOption::Blocksize(size) => meta.blocksize = size,
                     TftpOption::TimeoutSecs(secs) => meta.timeout = Some(secs),
                     TftpOption::TransferSize(size) => {
-                        tsize = Some(size);
+                        transfer_size = Some(size);
                         if !is_write {
                             // for read take out the transfer size initially, it needs changing
                             return None;
@@ -170,7 +171,7 @@ impl<IO: IOAdapter> TftpServerProto<IO> {
             .collect::<Vec<_>>();
 
         let (xfer, packet) = if is_write {
-            let fwrite = match self.io_proxy.create_new(file, tsize) {
+            let fwrite = match self.io_proxy.create_new(file, transfer_size) {
                 Ok(f) => f,
                 _ => return (None, Ok(ErrorCode::FileExists.into())),
             };
@@ -182,7 +183,7 @@ impl<IO: IOAdapter> TftpServerProto<IO> {
                 _ => return (None, Ok(ErrorCode::FileNotFound.into())),
             };
 
-            if let (Some(_), Some(file_size)) = (tsize, len) {
+            if let (Some(_), Some(file_size)) = (transfer_size, len) {
                 options.push(TftpOption::TransferSize(file_size));
             }
 
@@ -278,11 +279,11 @@ impl<IO: IOAdapter> Transfer<IO> {
                     ResponseItem::Done
                 } else {
                     rx.meta.timed_out = true;
-                    if rx.last_recv + 1 != rx.expected_block {
+                    if rx.last_recv + 1 == rx.expected_block {
+                        ResponseItem::RepeatLast(1)
+                    } else {
                         rx.expected_block = rx.last_recv + rx.meta.window_size;
                         ResponseItem::Packet(Packet::ACK(rx.last_recv.0))
-                    } else {
-                        ResponseItem::RepeatLast(1)
                     }
                 }
             }

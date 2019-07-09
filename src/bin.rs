@@ -2,7 +2,7 @@ use std::net::*;
 use std::path::Path;
 use std::str::FromStr;
 use std::time::Duration;
-use tftp_server::server::{ServerConfig, TftpServer};
+use tftp_server::{Config, TftpServer};
 
 use clap::{crate_version, App, Arg};
 
@@ -51,9 +51,13 @@ fn main() {
         )
         .get_matches();
 
-    let addrs = matches
-        .values_of(arg_ip)
-        .map(|ips| {
+    let addrs = matches.values_of(arg_ip).map_or_else(|| {
+            vec![
+                (IpAddr::from([127, 0, 0, 1]), Some(69)),
+                (IpAddr::from([0; 16]), Some(69)),
+            ]
+        },
+        |ips| {
             ips.map(|s| {
                 // try parsing in order: first ip:port, then just ip
                 if let Ok(sk) = SocketAddr::from_str(s) {
@@ -65,25 +69,19 @@ fn main() {
                 }
             })
             .collect()
-        })
-        .unwrap_or_else(|| {
-            vec![
-                (IpAddr::from([127, 0, 0, 1]), Some(69)),
-                (IpAddr::from([0; 16]), Some(69)),
-            ]
-        });
+        },
+    );
 
     let timeout = matches
         .value_of(arg_timeout)
-        .map(|s| {
+        .map_or(3, |s| {
             let n =
                 u64::from_str(s).unwrap_or_else(|_| panic!("error parsing \"{}\" as timeout", s));
             if n == 0 {
                 panic!("timeout may not be 0 seconds")
             }
             n
-        })
-        .unwrap_or(3);
+        });
     let timeout = Duration::from_secs(timeout);
 
     let dir = matches.value_of(arg_dir).map(|dir| {
@@ -92,7 +90,7 @@ fn main() {
         path.to_owned()
     });
 
-    let cfg = ServerConfig {
+    let cfg = Config {
         readonly: matches.is_present(arg_readonly),
         addrs,
         dir,

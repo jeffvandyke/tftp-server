@@ -1,6 +1,12 @@
+#![deny(clippy::all)]
+#![warn(clippy::pedantic)]
+
 mod options;
 pub mod packet;
-pub mod server;
+mod tftp_server;
+// Re-export all public types from tftp_server
+// (Idea: export server's types directly?)
+pub use tftp_server::*;
 mod tftp_proto;
 
 #[cfg(test)]

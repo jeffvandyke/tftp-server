@@ -4,27 +4,27 @@ use std::io::Write;
 use std::{io, result, str};
 
 #[derive(Debug)]
-pub enum PacketErr {
+pub enum Error {
     StrOutOfBounds,
     OpCodeOutOfBounds,
     UnsupportedField,
-    Utf8Error(str::Utf8Error),
-    IOError(io::Error),
+    StrUtf8(str::Utf8Error),
+    Io(io::Error),
 }
 
-impl From<str::Utf8Error> for PacketErr {
-    fn from(err: str::Utf8Error) -> PacketErr {
-        PacketErr::Utf8Error(err)
+impl From<str::Utf8Error> for Error {
+    fn from(err: str::Utf8Error) -> Error {
+        Error::StrUtf8(err)
     }
 }
 
-impl From<io::Error> for PacketErr {
-    fn from(err: io::Error) -> PacketErr {
-        PacketErr::IOError(err)
+impl From<io::Error> for Error {
+    fn from(err: io::Error) -> Error {
+        Error::Io(err)
     }
 }
 
-pub type Result<T> = result::Result<T, PacketErr>;
+pub type Result<T> = result::Result<T, Error>;
 
 macro_rules! primitive_enum {
     (
@@ -44,7 +44,7 @@ macro_rules! primitive_enum {
             fn from_u16(i: $base_int) -> Result<$enum_name> {
                 match i {
                     $( $value => Ok($enum_name::$variant), )+
-                    _ => Err(PacketErr::OpCodeOutOfBounds)
+                    _ => Err(Error::OpCodeOutOfBounds)
                 }
             }
         }
@@ -150,7 +150,7 @@ impl TransferMode {
         } else if "mail".eq_ignore_ascii_case(s) {
             Ok(Mail)
         } else {
-            Err(PacketErr::UnsupportedField)
+            Err(Error::UnsupportedField)
         }
     }
 }
@@ -275,7 +275,7 @@ mod strings {
 }
 
 fn read_rrq_packet(bytes: &[u8]) -> Result<Packet> {
-    use self::PacketErr::StrOutOfBounds;
+    use self::Error::StrOutOfBounds;
     if bytes.len() > 512 {
         Err(StrOutOfBounds)?;
     }
@@ -293,7 +293,7 @@ fn read_rrq_packet(bytes: &[u8]) -> Result<Packet> {
 }
 
 fn read_wrq_packet(bytes: &[u8]) -> Result<Packet> {
-    use self::PacketErr::StrOutOfBounds;
+    use self::Error::StrOutOfBounds;
     if bytes.len() > 512 {
         Err(StrOutOfBounds)?;
     }
@@ -324,9 +324,9 @@ fn read_options(mut strings: Strings) -> Vec<TftpOption> {
 }
 
 fn read_data_packet(mut bytes: &[u8]) -> Result<Packet> {
+    use std::io::Read;
     let block_num = bytes.read_u16::<BigEndian>()?;
     let mut data = Vec::with_capacity(512);
-    use std::io::Read;
     bytes.read_to_end(&mut data)?;
 
     Ok(Packet::DATA { block_num, data })
@@ -340,7 +340,7 @@ fn read_ack_packet(mut bytes: &[u8]) -> Result<Packet> {
 fn read_error_packet(mut bytes: &[u8]) -> Result<Packet> {
     let code = ErrorCode::from_u16(bytes.read_u16::<BigEndian>()?)?;
     let mut strings = Strings::from(bytes);
-    let msg = strings.next().ok_or(PacketErr::StrOutOfBounds)?.to_owned();
+    let msg = strings.next().ok_or(Error::StrOutOfBounds)?.to_owned();
 
     Ok(Packet::ERROR { code, msg })
 }

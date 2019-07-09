@@ -1,4 +1,4 @@
-use crate::packet::{ErrorCode, Packet, PacketErr, MAX_PACKET_SIZE};
+use crate::packet::{ErrorCode, Packet, Error as PacketError, MAX_PACKET_SIZE};
 use crate::tftp_proto::*;
 use log::*;
 use mio::net::UdpSocket;
@@ -16,26 +16,26 @@ const TIMER: Token = Token(0);
 
 #[derive(Debug)]
 pub enum TftpError {
-    PacketError(PacketErr),
-    IoError(io::Error),
-    TimerError(TimerError),
+    Packet(PacketError),
+    Io(io::Error),
+    Timer(TimerError),
 }
 
 impl From<io::Error> for TftpError {
     fn from(err: io::Error) -> TftpError {
-        TftpError::IoError(err)
+        TftpError::Io(err)
     }
 }
 
-impl From<PacketErr> for TftpError {
-    fn from(err: PacketErr) -> TftpError {
-        TftpError::PacketError(err)
+impl From<PacketError> for TftpError {
+    fn from(err: PacketError) -> TftpError {
+        TftpError::Packet(err)
     }
 }
 
 impl From<TimerError> for TftpError {
     fn from(err: TimerError) -> TftpError {
-        TftpError::TimerError(err)
+        TftpError::Timer(err)
     }
 }
 
@@ -59,7 +59,7 @@ struct ConnectionState<IO: IOAdapter> {
 }
 
 /// Struct used to specify working configuration of a server
-pub struct ServerConfig {
+pub struct Config {
     /// Specifies that the server should reject write requests
     pub readonly: bool,
     /// The directory the server will serve from instead of the default
@@ -70,9 +70,9 @@ pub struct ServerConfig {
     pub timeout: Duration,
 }
 
-impl Default for ServerConfig {
+impl Default for Config {
     fn default() -> Self {
-        ServerConfig {
+        Config {
             readonly: false,
             dir: None,
             addrs: vec![
@@ -84,9 +84,9 @@ impl Default for ServerConfig {
     }
 }
 
-pub type TftpServer = TftpServerImpl<FSAdapter>;
+pub type TftpServer = ServerImpl<FSAdapter>;
 
-pub struct TftpServerImpl<IO: IOAdapter> {
+pub struct ServerImpl<IO: IOAdapter> {
     /// The ID of a new token used for generating different tokens.
     new_token: Token,
     /// The event loop for handling async events.
@@ -104,16 +104,16 @@ pub struct TftpServerImpl<IO: IOAdapter> {
     proto_handler: TftpServerProto<IO>,
 }
 
-impl<IO: IOAdapter + Default> TftpServerImpl<IO> {
+impl<IO: IOAdapter + Default> ServerImpl<IO> {
     /// Creates a new TFTP server from a random open UDP port.
     pub fn new() -> Result<Self> {
         Self::with_cfg(&Default::default())
     }
 
     /// Creates a new TFTP server from the provided config
-    pub fn with_cfg(cfg: &ServerConfig) -> Result<Self> {
+    pub fn with_cfg(cfg: &Config) -> Result<Self> {
         if cfg.addrs.is_empty() {
-            return Err(TftpError::IoError(io::Error::new(
+            return Err(TftpError::Io(io::Error::new(
                 io::ErrorKind::InvalidInput,
                 "address list empty; nothing to listen on",
             )));
@@ -397,8 +397,8 @@ impl<IO: IOAdapter + Default> TftpServerImpl<IO> {
 
             for event in events.iter() {
                 match self.handle_token(event.token(), &mut scratch_buf) {
-                    Ok(_) | Err(TftpError::IoError(_)) => { /* swallow Io errors */ }
-                    Err(TftpError::PacketError(_)) => {
+                    Ok(_) | Err(TftpError::Io(_)) => { /* swallow Io errors */ }
+                    Err(TftpError::Packet(_)) => {
                         error!("malformed packet");
                     }
                     e => return e,

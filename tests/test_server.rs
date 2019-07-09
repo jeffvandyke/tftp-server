@@ -7,7 +7,7 @@ use std::net::{IpAddr, SocketAddr, UdpSocket};
 use std::thread;
 use std::time::Duration;
 use tftp_server::packet::{ErrorCode, Packet, TftpOption, MAX_PACKET_SIZE};
-use tftp_server::server::{Result, ServerConfig, TftpServer};
+use tftp_server::{Result, Config, TftpServer};
 
 use tftp_server::packet::TransferMode::*;
 
@@ -16,7 +16,7 @@ use crate::misc_utils::*;
 
 /// Starts the server in a new thread.
 pub fn start_server() -> Result<Vec<SocketAddr>> {
-    let mut cfg: ServerConfig = Default::default();
+    let mut cfg: Config = Default::default();
     cfg.addrs = vec![];
     assert!(
         TftpServer::with_cfg(&cfg).is_err(),
