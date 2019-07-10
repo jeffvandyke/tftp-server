@@ -7,7 +7,7 @@ use std::net::{IpAddr, SocketAddr, UdpSocket};
 use std::thread;
 use std::time::Duration;
 use tftp_server::packet::{ErrorCode, Packet, TftpOption, MAX_PACKET_SIZE};
-use tftp_server::{Result, Config, TftpServer};
+use tftp_server::{Config, Result, TftpServer};
 
 use tftp_server::packet::TransferMode::*;
 

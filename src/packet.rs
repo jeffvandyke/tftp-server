@@ -13,13 +13,13 @@ pub enum Error {
 }
 
 impl From<str::Utf8Error> for Error {
-    fn from(err: str::Utf8Error) -> Error {
+    fn from(err: str::Utf8Error) -> Self {
         Error::StrUtf8(err)
     }
 }
 
 impl From<io::Error> for Error {
-    fn from(err: io::Error) -> Error {
+    fn from(err: io::Error) -> Self {
         Error::Io(err)
     }
 }
@@ -41,7 +41,7 @@ macro_rules! primitive_enum {
 
         // TODO: change this to a From<u16> impl
         impl $enum_name {
-            fn from_u16(i: $base_int) -> Result<$enum_name> {
+            fn from_u16(i: $base_int) -> Result<Self> {
                 match i {
                     $( $value => Ok($enum_name::$variant), )+
                     _ => Err(Error::OpCodeOutOfBounds)
@@ -99,7 +99,7 @@ impl ErrorCode {
 impl From<ErrorCode> for Packet {
     /// Returns the ERROR packet with the error code and
     /// the default description as the error message.
-    fn from(code: ErrorCode) -> Packet {
+    fn from(code: ErrorCode) -> Self {
         let msg = code.to_string();
         Packet::ERROR { code, msg }
     }
@@ -169,7 +169,7 @@ impl fmt::Display for TransferMode {
 
 impl Packet {
     /// Creates and returns a packet parsed from its byte representation.
-    pub fn read(mut bytes: &[u8]) -> Result<Packet> {
+    pub fn read(mut bytes: &[u8]) -> Result<Self> {
         let opcode = OpCode::from_u16(bytes.read_u16::<BigEndian>()?)?;
         match opcode {
             OpCode::RRQ => read_rrq_packet(bytes),

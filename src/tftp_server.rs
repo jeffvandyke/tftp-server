@@ -72,7 +72,7 @@ pub struct Config {
 
 impl Default for Config {
     fn default() -> Self {
-        Config {
+        Self {
             readonly: false,
             dir: None,
             addrs: vec![
@@ -107,7 +107,7 @@ pub struct ServerImpl<IO: IOAdapter> {
 impl<IO: IOAdapter + Default> ServerImpl<IO> {
     /// Creates a new TFTP server from a random open UDP port.
     pub fn new() -> Result<Self> {
-        Self::with_cfg(&Default::default())
+        Self::with_cfg(&Config::default())
     }
 
     /// Creates a new TFTP server from the provided config
@@ -175,7 +175,7 @@ impl<IO: IOAdapter + Default> ServerImpl<IO> {
             .len()
             .saturating_add(self.server_sockets.len())
             .saturating_add(1 /* timer token */)
-            == usize::MAX
+            == usize::max_value()
         {
             panic!("no more tokens, but impressive amount of memory");
         }
@@ -260,8 +260,8 @@ impl<IO: IOAdapter + Default> ServerImpl<IO> {
             let status = if let Some(ref mut conn) = self.connections.get_mut(&token) {
                 match conn.transfer.timeout_expired() {
                     ResponseItem::Packet(packet) => {
-                        let amt = packet.write_to_slice(buf)?;
-                        let sent = Vec::from(&buf[..amt]);
+                        let amt_written = packet.write_to_slice(buf)?;
+                        let sent = Vec::from(&buf[..amt_written]);
                         conn.socket.send_to(&sent, &conn.remote)?;
                         conn.last_packets = vec![sent];
 
@@ -327,11 +327,11 @@ impl<IO: IOAdapter + Default> ServerImpl<IO> {
         let socket = make_bound_socket(local_ip, None)?;
 
         // send packet back for all cases
-        let amt = reply_packet.write_to_slice(buf)?;
-        socket.send_to(&buf[..amt], &src)?;
+        let amt_written = reply_packet.write_to_slice(buf)?;
+        socket.send_to(&buf[..amt_written], &src)?;
 
         if let Some(xfer) = xfer {
-            self.create_connection(new_conn_token, socket, xfer, &buf[..amt], src)?;
+            self.create_connection(new_conn_token, socket, xfer, &buf[..amt_written], src)?;
         }
 
         Ok(())
@@ -350,8 +350,8 @@ impl<IO: IOAdapter + Default> ServerImpl<IO> {
 
         if conn.remote != src {
             // packet from somehere else, reply with error
-            let amt = Packet::from(ErrorCode::UnknownID).write_to_slice(buf)?;
-            conn.socket.send_to(&buf[..amt], &conn.remote)?;
+            let amt_written = Packet::from(ErrorCode::UnknownID).write_to_slice(buf)?;
+            conn.socket.send_to(&buf[..amt_written], &conn.remote)?;
             return Ok(());
         }
         let packet = Packet::read(&buf[..amt])?;
@@ -369,8 +369,8 @@ impl<IO: IOAdapter + Default> ServerImpl<IO> {
             match item {
                 ResponseItem::Done => break,
                 ResponseItem::Packet(packet) => {
-                    let amt = packet.write_to_slice(buf)?;
-                    let sent = Vec::from(&buf[..amt]);
+                    let amt_written = packet.write_to_slice(buf)?;
+                    let sent = Vec::from(&buf[..amt_written]);
                     conn.socket.send_to(&sent, &conn.remote)?;
                     sent_packets.push(sent);
                 }
